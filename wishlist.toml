@@ -10,10 +10,14 @@ simc_source = "raiderio"
 wowaudit_team_url = "https://wowaudit.com/guild/eu/draenor/kelderklasse/teams/main"
 
 [qe]
-raid_difficulty = "Mythic"
+raid_difficulty = ["Heroic", "Mythic"]  # user test 2026-09-22: Heroic shown next to Mythic
 mplus_level = 10
 crafted_ilvl = 331
 catalyst_limit = 4
+# Guild droptimizer parity (raid lead, 2026-09): no sockets, equipped gear at max upgrade
+# (QE's "Upgrade ALL to Max Level" ~ Raidbots "Match Droptimizer Item Levels").
+auto_gem = false
+upgrade_all_to_max = true
 
 [[characters]]
 name = "Shiftheal"

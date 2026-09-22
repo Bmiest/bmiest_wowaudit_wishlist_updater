@@ -34,11 +34,18 @@ Uploader = Callable[[str, str], Awaitable[None]]
 @dataclass
 class Outcome:
     character: Character
+    difficulty: str | None = None
     report_url: str | None = None
     uploaded_via: str | None = None  # "API key" / "login session"; None = not uploaded
     skipped: str | None = None
     error: str | None = None
     warnings: list[str] = field(default_factory=list)
+    simc: str | None = None  # the SimC string QE was given (for the run summary/dashboard)
+
+    @property
+    def label(self) -> str:
+        label = self.character.label
+        return f"{label} · {self.difficulty}" if self.difficulty else label
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -96,6 +103,12 @@ async def get_simc(
     return await fetch_simc_from_raiderio(character, api_key=secrets.raiderio_api_key)
 
 
+def raid_difficulties(qe_settings: dict[str, object]) -> list[str]:
+    """wishlist.toml may list several; QE runs one per report, in the listed order."""
+    value = qe_settings.get("raid_difficulty", "Mythic")
+    return [value] if isinstance(value, str) else [str(v) for v in value]
+
+
 async def process_character(
     character: Character,
     *,
@@ -105,36 +118,49 @@ async def process_character(
     generate_report: ReportGenerator,
     upload: Uploader | None,
     upload_method: str | None = None,
-) -> Outcome:
-    outcome = Outcome(character)
+) -> list[Outcome]:
+    """One Outcome per raid difficulty (or a single one if the character fails before QE)."""
+    base = Outcome(character)
     try:
         profile = await get_simc(character, config.simc_source, secrets, simc_override)
         if simc_override is None and character.item_overrides:
             # A real /simc export already carries these fields; fetched gear needs them.
-            text, outcome.warnings = apply_overrides(profile.text, character.item_overrides)
+            text, base.warnings = apply_overrides(profile.text, character.item_overrides)
             profile = replace(profile, text=text)
-        for warning in outcome.warnings:
+        for warning in base.warnings:
             log.warning("%s: %s", character.label, warning)
+        base.simc = profile.text
         if (profile.class_token, profile.spec_token) not in HEALER_SPECS:
-            outcome.skipped = (
+            base.skipped = (
                 f"{profile.spec_token} {profile.class_token} is not a healer spec "
                 "(QE Live only supports healers)"
             )
-            return outcome
-
-        log.info("%s: generating QE Live report", character.label)
-        outcome.report_url = await generate_report(profile, config.qe)
-        log.info("%s: report %s", character.label, outcome.report_url)
-
-        if upload is None:
-            return outcome
-        await upload(outcome.report_url, profile.name)
-        outcome.uploaded_via = upload_method
-        log.info("%s: imported into WoWAudit (%s)", character.label, upload_method)
-    except Exception as exc:  # one character failing must not stop the others
+            return [base]
+    except Exception as exc:
         log.exception("%s: failed", character.label)
-        outcome.error = f"{type(exc).__name__}: {exc}"
-    return outcome
+        base.error = f"{type(exc).__name__}: {exc}"
+        return [base]
+
+    outcomes = []
+    # Each difficulty is its own report and upload; one failing must not stop the rest.
+    for difficulty in raid_difficulties(config.qe):
+        outcome = replace(base, difficulty=difficulty, warnings=list(base.warnings))
+        outcomes.append(outcome)
+        try:
+            log.info("%s: generating QE Live report", outcome.label)
+            outcome.report_url = await generate_report(
+                profile, {**config.qe, "raid_difficulty": difficulty}
+            )
+            log.info("%s: report %s", outcome.label, outcome.report_url)
+            if upload is None:
+                continue
+            await upload(outcome.report_url, profile.name)
+            outcome.uploaded_via = upload_method
+            log.info("%s: imported into WoWAudit (%s)", outcome.label, upload_method)
+        except Exception as exc:
+            log.exception("%s: failed", outcome.label)
+            outcome.error = f"{type(exc).__name__}: {exc}"
+    return outcomes
 
 
 def api_uploader(api_key: str) -> Uploader:
@@ -229,7 +255,7 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
         if o.warnings:
             result += "<br>⚠️ " + "<br>⚠️ ".join(o.warnings)
         report = f"[link]({o.report_url})" if o.report_url else ""
-        rows.append(f"| {o.character.label} | {result.replace('|', '/')} | {report} |")
+        rows.append(f"| {o.label} | {result.replace('|', '/')} | {report} |")
     with open(path, "a", encoding="utf-8") as fh:
         fh.write("## WoWAudit wishlist update\n\n" + "\n".join(rows) + "\n")
 
@@ -255,8 +281,9 @@ async def run(args: argparse.Namespace) -> int:
             upload = browser.session_uploader(session, config.wowaudit_team_url)
         else:
             upload = None
-        outcomes = [
-            await process_character(
+        outcomes = []
+        for c in characters:
+            outcomes += await process_character(
                 c,
                 config=config,
                 secrets=secrets,
@@ -265,8 +292,6 @@ async def run(args: argparse.Namespace) -> int:
                 upload=upload,
                 upload_method=upload_method,
             )
-            for c in characters
-        ]
 
     write_step_summary(outcomes)
     for o in outcomes:
@@ -275,7 +300,7 @@ async def run(args: argparse.Namespace) -> int:
             or o.skipped
             or (f"imported via {o.uploaded_via}" if o.uploaded_via else "report only")
         )
-        print(f"{o.character.label}: {status} {o.report_url or ''}".rstrip())
+        print(f"{o.label}: {status} {o.report_url or ''}".rstrip())
     return 1 if any(o.error for o in outcomes) else 0
 
 

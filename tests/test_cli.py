@@ -34,7 +34,7 @@ def uploads(monkeypatch):
 async def _process(
     simc=ADDON_SIMC, *, dry_run=False, generate=fake_report, secrets=SECRETS, config=CONFIG
 ):
-    return await cli.process_character(
+    [outcome] = await cli.process_character(
         SHIFTHEAL,
         config=config,
         secrets=secrets,
@@ -43,6 +43,7 @@ async def _process(
         upload=None if dry_run else cli.api_uploader(secrets.wowaudit_api_key),
         upload_method=None if dry_run else "API key",
     )
+    return outcome
 
 
 async def test_happy_path_uploads_report(uploads):
@@ -114,7 +115,7 @@ def test_step_summary(tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
     cli.write_step_summary(
         [
-            cli.Outcome(SHIFTHEAL, report_url=REPORT_URL, uploaded_via="login session"),
+            cli.Outcome(SHIFTHEAL, "Mythic", report_url=REPORT_URL, uploaded_via="login session"),
             cli.Outcome(SHIFTHEAL, error="Boom | pipe"),
         ]
     )
@@ -141,7 +142,7 @@ async def test_overrides_applied_to_fetched_gear_not_to_simc_exports(uploads, mo
     )
     config = Config(characters=(char,), qe={"raid_difficulty": "Mythic"})
     for simc in (None, ADDON_SIMC):
-        outcome = await cli.process_character(
+        [outcome] = await cli.process_character(
             char,
             config=config,
             secrets=SECRETS,
@@ -195,7 +196,7 @@ async def test_upload_failure_is_an_error_with_report_link_kept(uploads):
     async def expired(report_url, character_name):
         raise RuntimeError("Not logged in to WoWAudit. Run `wishlist-updater --wowaudit-login`")
 
-    outcome = await cli.process_character(
+    [outcome] = await cli.process_character(
         SHIFTHEAL,
         config=CONFIG,
         secrets=SECRETS,
@@ -207,3 +208,67 @@ async def test_upload_failure_is_an_error_with_report_link_kept(uploads):
     assert outcome.report_url == REPORT_URL
     assert outcome.uploaded_via is None
     assert "--wowaudit-login" in outcome.error
+
+
+async def test_heroic_then_mythic_two_reports_two_uploads_in_order(monkeypatch):
+    calls = []
+
+    async def generate(profile, qe_settings):
+        calls.append(("qe", qe_settings["raid_difficulty"]))
+        return f"https://questionablyepic.com/live/upgradereport/{qe_settings['raid_difficulty']}"
+
+    async def upload(report_url, character_name):
+        calls.append(("upload", report_url.rsplit("/", 1)[1]))
+
+    fetches = []
+
+    async def fake_raiderio(character, *, api_key=None):
+        fetches.append(character)
+        return cli.parse_simc_text(ADDON_SIMC)
+
+    monkeypatch.setattr(cli, "fetch_simc_from_raiderio", fake_raiderio)
+    config = Config(
+        characters=(SHIFTHEAL,), qe={"raid_difficulty": ["Heroic", "Mythic"], "mplus_level": 10}
+    )
+    outcomes = await cli.process_character(
+        SHIFTHEAL,
+        config=config,
+        secrets=SECRETS,
+        simc_override=None,
+        generate_report=generate,
+        upload=upload,
+        upload_method="login session",
+    )
+    assert len(fetches) == 1  # gear fetched once, reused for both reports
+    assert calls == [("qe", "Heroic"), ("upload", "Heroic"), ("qe", "Mythic"), ("upload", "Mythic")]
+    assert [o.difficulty for o in outcomes] == ["Heroic", "Mythic"]
+    assert [o.label for o in outcomes] == [
+        "Shiftheal-ragnaros (EU) · Heroic",
+        "Shiftheal-ragnaros (EU) · Mythic",
+    ]
+    assert all(o.uploaded_via == "login session" and o.simc for o in outcomes)
+
+
+async def test_failed_heroic_does_not_block_mythic():
+    async def generate(profile, qe_settings):
+        if qe_settings["raid_difficulty"] == "Heroic":
+            raise RuntimeError("QE hiccup")
+        return REPORT_URL
+
+    config = Config(characters=(SHIFTHEAL,), qe={"raid_difficulty": ["Heroic", "Mythic"]})
+    heroic, mythic = await cli.process_character(
+        SHIFTHEAL,
+        config=config,
+        secrets=SECRETS,
+        simc_override=ADDON_SIMC,
+        generate_report=generate,
+        upload=None,
+    )
+    assert heroic.error == "RuntimeError: QE hiccup"
+    assert mythic.error is None and mythic.report_url == REPORT_URL
+
+
+def test_raid_difficulties():
+    assert cli.raid_difficulties({}) == ["Mythic"]
+    assert cli.raid_difficulties({"raid_difficulty": "Heroic"}) == ["Heroic"]
+    assert cli.raid_difficulties({"raid_difficulty": ["Heroic", "Mythic"]}) == ["Heroic", "Mythic"]
