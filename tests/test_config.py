@@ -45,3 +45,17 @@ def test_secrets_require(monkeypatch):
     secrets.require("wowaudit_api_key")
     with pytest.raises(ConfigError, match="BLIZZARD_CLIENT_ID"):
         secrets.require("blizzard_client_id")
+
+
+def test_item_overrides_validation(tmp_path):
+    cfg = tmp_path / "w.toml"
+    base = '[[characters]]\nname = "A"\nrealm = "b"\n[characters.item_overrides]\n'
+    cfg.write_text(base + "wasit = { id = 1, crafted_stats = [40] }\n")
+    with pytest.raises(ConfigError, match="unknown slot 'wasit'"):
+        Config.load(cfg)
+    cfg.write_text(base + "waist = { id = 1, crafted_stat = [40] }\n")
+    with pytest.raises(ConfigError, match="unknown key"):
+        Config.load(cfg)
+    cfg.write_text(base + "waist = { crafted_stats = [40] }\n")
+    with pytest.raises(ConfigError, match="needs at least an id"):
+        Config.load(cfg)

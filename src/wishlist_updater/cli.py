@@ -8,10 +8,11 @@ import logging
 import os
 import sys
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from wishlist_updater.config import DEFAULT_CONFIG_PATH, Character, Config, ConfigError, Secrets
+from wishlist_updater.overrides import apply_overrides, extract_overrides, to_toml
 from wishlist_updater.simc_source import (
     HEALER_SPECS,
     SimcProfile,
@@ -34,6 +35,7 @@ class Outcome:
     uploaded: bool = False
     skipped: str | None = None
     error: str | None = None
+    warnings: list[str] = field(default_factory=list)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -45,6 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Use this SimC export instead of fetching one ('-' reads stdin). "
         "Requires exactly one character (use --character).",
+    )
+    p.add_argument(
+        "--extract-overrides",
+        type=Path,
+        metavar="SIMC_FILE",
+        help="Print the wishlist.toml item_overrides block for an addon /simc export and exit.",
     )
     p.add_argument("--dry-run", action="store_true", help="Generate reports but skip WoWAudit.")
     p.add_argument("--headed", action="store_true", help="Show the browser (local debugging).")
@@ -89,6 +97,12 @@ async def process_character(
     outcome = Outcome(character)
     try:
         profile = await get_simc(character, config.simc_source, secrets, simc_override)
+        if simc_override is None and character.item_overrides:
+            # A real /simc export already carries these fields; fetched gear needs them.
+            text, outcome.warnings = apply_overrides(profile.text, character.item_overrides)
+            profile = replace(profile, text=text)
+        for warning in outcome.warnings:
+            log.warning("%s: %s", character.label, warning)
         if (profile.class_token, profile.spec_token) not in HEALER_SPECS:
             outcome.skipped = (
                 f"{profile.spec_token} {profile.class_token} is not a healer spec "
@@ -155,6 +169,8 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
             result = "✅ imported"
         else:
             result = "🧪 dry run"
+        if o.warnings:
+            result += "<br>⚠️ " + "<br>⚠️ ".join(o.warnings)
         report = f"[link]({o.report_url})" if o.report_url else ""
         rows.append(f"| {o.character.label} | {result.replace('|', '/')} | {report} |")
     with open(path, "a", encoding="utf-8") as fh:
@@ -201,6 +217,11 @@ async def run(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.extract_overrides:
+        overrides = extract_overrides(args.extract_overrides.read_text())
+        print("# Paste under the matching [[characters]] entry in wishlist.toml")
+        print(to_toml(overrides), end="")
+        return 0
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

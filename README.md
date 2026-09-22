@@ -66,9 +66,11 @@ uv run pytest -m live                                    # hits real sites
 
 - Raider.io and the Blizzard API only expose **equipped** gear. Bag items, catalyst charges
   and upgrade currencies from the in-game addon are missing unless you pass a `/simc` export.
-- Neither API exposes `redirected_base_stats` (the stats of catalysed tier pieces), so QE uses
-  the tier item's default secondary stats for those slots.
-- Raider.io has no crafted stats. That's harmless: QE takes crafted stats from bonus IDs, and
-  those override the SimC `crafted_stats=` field anyway.
+- Neither API exposes `redirected_base_stats` (catalysed tier pieces) or `crafted_stats` (crafted
+  items), and without them QE's upgrade values are off by up to about 50%. `wishlist.toml`
+  therefore stores them per slot in `item_overrides`, which you extract from a `/simc` export with
+  `uv run wishlist-updater --extract-overrides export.txt`. An override applies only while
+  that slot still holds the same item. After you swap a tier or crafted item, the run summary
+  warns you to refresh the overrides.
 - QE Live automation drives the website UI, so a QE redesign can break it. When a run fails,
   it uploads screenshots as a workflow artifact.

@@ -120,3 +120,34 @@ def test_step_summary(tmp_path, monkeypatch):
     text = summary.read_text()
     assert "✅ imported" in text and f"[link]({REPORT_URL})" in text
     assert "Boom / pipe" in text
+
+
+async def test_overrides_applied_to_fetched_gear_not_to_simc_exports(uploads, monkeypatch):
+    from wishlist_updater.config import ItemOverride
+
+    seen = []
+
+    async def capture(profile, qe_settings):
+        seen.append(profile.text)
+        return REPORT_URL
+
+    async def fake_raiderio(character, *, api_key=None):
+        return cli.parse_simc_text('priest="Shiftheal"\nspec=holy\nhead=,id=1,ilevel=5\n')
+
+    monkeypatch.setattr(cli, "fetch_simc_from_raiderio", fake_raiderio)
+    char = Character(
+        "Shiftheal", "ragnaros", "eu", {"head": ItemOverride(1, redirected_base_stats=9)}
+    )
+    config = Config(characters=(char,), qe={"raid_difficulty": "Mythic"})
+    for simc in (None, ADDON_SIMC):
+        outcome = await cli.process_character(
+            char,
+            config=config,
+            secrets=SECRETS,
+            simc_override=simc,
+            generate_report=capture,
+            dry_run=True,
+        )
+        assert outcome.error is None
+    assert "head=,id=1,redirected_base_stats=9,ilevel=5" in seen[0]
+    assert seen[1] == ADDON_SIMC

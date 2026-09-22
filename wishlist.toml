@@ -16,3 +16,14 @@ catalyst_limit = 4
 name = "Shiftheal"
 realm = "ragnaros"
 region = "eu"
+
+# Catalysed tier pieces and crafted items carry stats the gear APIs don't expose.
+# Regenerate after swapping one of these items:
+#   uv run wishlist-updater --extract-overrides my_simc_export.txt
+[characters.item_overrides]
+head = { id = 271555, redirected_base_stats = 268242 }
+shoulder = { id = 271553, redirected_base_stats = 239031 }
+chest = { id = 271558, redirected_base_stats = 268221 }
+waist = { id = 239649, crafted_stats = [40, 36] }
+legs = { id = 271554, redirected_base_stats = 268236 }
+off_hand = { id = 245769, crafted_stats = [32, 40] }

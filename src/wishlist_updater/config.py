@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_CONFIG_PATH = Path("wishlist.toml")
@@ -26,10 +26,20 @@ def realm_slug(realm: str) -> str:
 
 
 @dataclass(frozen=True)
+class ItemOverride:
+    """SimC item attributes the gear APIs don't expose; see overrides.py."""
+
+    item_id: int
+    redirected_base_stats: int | None = None
+    crafted_stats: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
 class Character:
     name: str
     realm: str
     region: str = "eu"
+    item_overrides: dict[str, ItemOverride] = field(default_factory=dict, hash=False, compare=False)
 
     @property
     def label(self) -> str:
@@ -81,11 +91,14 @@ class Config:
                     name=c["name"],
                     realm=realm_slug(c["realm"]),
                     region=c.get("region", "eu").lower(),
+                    item_overrides=_parse_item_overrides(c.get("item_overrides", {})),
                 )
                 for c in chars
             )
         except KeyError as exc:
             raise ConfigError(f"{path}: character entry missing key {exc}") from exc
+        except (TypeError, ValueError) as exc:
+            raise ConfigError(f"{path}: {exc}") from exc
 
         simc_source = raw.get("simc_source", "raiderio")
         if simc_source not in SIMC_SOURCES:
@@ -94,3 +107,24 @@ class Config:
         # QE settings are passed through to qe.QESettings(**qe) so the QE module
         # stays the single owner of which knobs exist.
         return cls(characters=characters, qe=dict(raw.get("qe", {})), simc_source=simc_source)
+
+
+def _parse_item_overrides(table: dict) -> dict[str, ItemOverride]:
+    from wishlist_updater.simc_source import SLOT_ORDER  # lazy: simc_source imports config
+
+    overrides = {}
+    for slot, entry in table.items():
+        if slot not in SLOT_ORDER:
+            raise ValueError(f"item_overrides: unknown slot {slot!r}")
+        if not isinstance(entry, dict) or "id" not in entry:
+            raise ValueError(f"item_overrides.{slot}: needs at least an id")
+        unknown = set(entry) - {"id", "redirected_base_stats", "crafted_stats"}
+        if unknown:
+            raise ValueError(f"item_overrides.{slot}: unknown key(s) {sorted(unknown)}")
+        redirected = entry.get("redirected_base_stats")
+        overrides[slot] = ItemOverride(
+            item_id=int(entry["id"]),
+            redirected_base_stats=int(redirected) if redirected is not None else None,
+            crafted_stats=tuple(int(s) for s in entry.get("crafted_stats", ())),
+        )
+    return overrides
