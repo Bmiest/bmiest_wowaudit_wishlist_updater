@@ -82,7 +82,8 @@ uv run pytest -m live                                    # hits real sites
 Every workflow run is published to https://bmiest.github.io/bmiest_wowaudit_wishlist_updater/,
 including failed and report-only runs. It shows the run history, the Heroic and Mythic reports
 with their top upgrades, and the gear you had equipped. The history lives on the
-`dashboard-data` branch, which keeps the newest 200 runs.
+`dashboard-data` branch, which keeps the newest 200 runs. Changes to the frontend (`site/`)
+redeploy on their own through `deploy-site.yml`, without a new pipeline run.
 
 The site is public, so it only gets data that is public anyway: gear, QE report results and run
 status. Your WoWAudit session, your wishlist and the raw `/simc` export never go there.
@@ -108,4 +109,6 @@ status. Your WoWAudit session, your wishlist and the raw `/simc` export never go
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The peon in `site/assets/peon-jobs-done.*` is Blizzard
+Entertainment's Warcraft III artwork, used on a non-commercial fan page. The MIT license
+doesn't cover it.
