@@ -19,8 +19,14 @@ from wishlist_updater.qe import (
 FIXTURES = Path(__file__).parent / "fixtures"
 ADDON_SIMC = (FIXTURES / "simc" / "shiftheal_addon.simc").read_text()
 SAVED_REPORT = json.loads((FIXTURES / "qe" / "saved_report_payload.json").read_text())
-# The settings the fixture report was generated with: Mythic, +10, 331.
-REPORT_SETTINGS = {"qe_spec": "Holy Priest", "raid_index": 3, "mplus_index": 7, "crafted_index": 2}
+# The settings the fixture report was generated with: Mythic, +10, 331, no sockets.
+REPORT_SETTINGS = {
+    "qe_spec": "Holy Priest",
+    "raid_index": 3,
+    "mplus_index": 7,
+    "crafted_index": 2,
+    "auto_gem": False,
+}
 
 
 def test_parse_simc_identity():
@@ -95,6 +101,8 @@ def test_check_saved_report():
         (["ufSettings", "raid"], [2], "expected"),
         (["ufSettings", "dungeon"], 6, "expected"),
         (["ufSettings", "craftedLevel"], 1, "expected"),
+        (["autoGem"], True, "autoGem=True"),
+        (["autoGem"], None, "autoGem=None"),
         (["results"], [], "no upgrade results"),
         (["id"], None, "unexpected id"),
         (["id"], "has space", "unexpected id"),
@@ -118,6 +126,7 @@ def test_qe_settings_defaults_are_the_users_settings():
         "crafted_ilvl": 331,
         "catalyst_limit": 4,
         "show_percent_upgrade": True,
+        "auto_gem": False,
         "crafted_stats": None,
         "ally_buffs_scaling": 75,
         "cosmic_crescendo": 75,

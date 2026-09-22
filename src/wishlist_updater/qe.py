@@ -93,6 +93,7 @@ class QESettings:
     crafted_ilvl: int = 331
     catalyst_limit: int = 4
     show_percent_upgrade: bool = True
+    auto_gem: bool = False  # QE's "Auto-add Sockets"; the guild requires sims without sockets
     crafted_stats: str | None = None  # e.g. "Crit / Haste"; None keeps QE's default
     ally_buffs_scaling: int | None = 75
     cosmic_crescendo: int | None = 75
@@ -178,11 +179,12 @@ def check_saved_report(
     raid_index: int,
     mplus_index: int,
     crafted_index: int,
+    auto_gem: bool,
 ) -> str:
     """Check the report QE posted to its backend and return its ID.
 
-    The payload's ufSettings are what the finder actually ran with, so this catches UI changes
-    that make a click silently do nothing.
+    The payload's ufSettings and autoGem are what the finder actually ran with, so this catches
+    UI changes that make a click silently do nothing.
     """
     report_id = payload.get("id")
     if not isinstance(report_id, str) or not _REPORT_ID.match(report_id):
@@ -195,6 +197,8 @@ def check_saved_report(
     actual = {key: uf.get(key) for key in expected}
     if actual != expected:
         raise QEError(f"QE ran with settings {actual}, expected {expected}")
+    if payload.get("autoGem") != auto_gem:
+        raise QEError(f"QE ran with autoGem={payload.get('autoGem')!r}, expected {auto_gem}")
 
     if not payload.get("results"):
         raise QEError("QE saved a report with no upgrade results")
@@ -247,6 +251,7 @@ async def generate_upgrade_report(
             raid_index=raid_index,
             mplus_index=mplus_index,
             crafted_index=crafted_index,
+            auto_gem=settings.auto_gem,
         )
 
         run.step = f"confirming report {report_id} was saved"
@@ -381,6 +386,7 @@ class _Run:
         metric = "Show % Upgrade" if settings.show_percent_upgrade else "Show HPS"
         await self._choose(panel, "Upgrade Finder", metric)
         await self._choose(panel, "Catalyst Limit", str(settings.catalyst_limit))
+        await self._choose(panel, "Auto-add Sockets", "true" if settings.auto_gem else "false")
 
         entries = {
             "Ally Buffs Scaling": settings.ally_buffs_scaling,
