@@ -41,6 +41,10 @@ jobs:
       options: --init --ipc=host
     env:
       UV_PYTHON_PREFERENCE: only-system
+    defaults:
+      run:
+        # Container jobs default to sh (dash), which lacks arrays and pipefail.
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
