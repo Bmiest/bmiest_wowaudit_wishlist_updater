@@ -1,0 +1,153 @@
+{
+  "id": "hiswksqmzpbs",
+  "dateCreated": "2026 - 9 - 22",
+  "timeCreated": "Tue, 22 Sep 2026 20:12:32 GMT",
+  "playername": "Shiftheal",
+  "realm": "Ragnaros",
+  "region": "EU",
+  "autoGem": false,
+  "spec": "Holy Priest",
+  "contentType": "Raid",
+  "results": [
+    {
+      "item": 158366,
+      "dropLoc": "Dungeon",
+      "dropType": "drop",
+      "dropDifficulty": 7,
+      "level": 311,
+      "score": 0,
+      "rawDiff": 0,
+      "percDiff": 0
+    },
+    {
+      "item": 158366,
+      "dropLoc": "Dungeon",
+      "dropType": "max",
+      "dropDifficulty": 7,
+      "level": 321,
+      "score": 0,
+      "rawDiff": 0,
+      "percDiff": 0
+    },
+    {
+      "item": 158366,
+      "dropLoc": "Dungeon",
+      "dropType": "bonus",
+      "dropDifficulty": 7,
+      "level": 334,
+      "score": 0.0043655895695111965,
+      "rawDiff": 1528,
+      "percDiff": 0.437
+    }
+  ],
+  "ufSettings": {
+    "raid": [
+      3
+    ],
+    "dungeon": 7,
+    "pvp": 0,
+    "craftedLevel": 2,
+    "craftedStats": "Crit / Haste",
+    "itemTypes": [
+      "Drop",
+      "Upgraded",
+      "Bonus Roll"
+    ]
+  },
+  "equippedItems": [
+    {
+      "gameType": "Retail",
+      "id": 271555,
+      "level": 321,
+      "name": "",
+      "slot": "Head",
+      "softScore": 261.42,
+      "socket": 0,
+      "classicSockets": {
+        "sockets": [],
+        "bonus": {}
+      },
+      "socketedGems": [],
+      "tertiary": "",
+      "stats": {
+        "intellect": 167,
+        "haste": 136,
+        "crit": 54
+      },
+      "missiveStats": [],
+      "specialAllocations": {},
+      "craftedStats": [],
+      "catalyzedID": 268242,
+      "effect": "",
+      "uniqueHash": "27155525979",
+      "uniqueEquip": [],
+      "active": true,
+      "vaultItem": false,
+      "exclusiveItem": false,
+      "isEquipped": true,
+      "source": {},
+      "onUse": false,
+      "setID": 2063,
+      "quality": 4,
+      "upgradeTrack": "Hero",
+      "upgradeRank": 6,
+      "itemConversion": 0,
+      "bonusIDS": "12846:13334:6652:13696:13692:13698:1574",
+      "isCatalystItem": false,
+      "overriddenName": false,
+      "offhandID": 0,
+      "gemString": "",
+      "flags": []
+    },
+    {
+      "gameType": "Retail",
+      "id": 268265,
+      "level": 334,
+      "name": "",
+      "slot": "Neck",
+      "softScore": 273.91,
+      "socket": 2,
+      "classicSockets": {
+        "sockets": [],
+        "bonus": {}
+      },
+      "socketedGems": [],
+      "tertiary": "",
+      "stats": {
+        "intellect": 0,
+        "crit": 101,
+        "mastery": 101,
+        "haste": 101,
+        "versatility": 101
+      },
+      "missiveStats": [],
+      "specialAllocations": {},
+      "craftedStats": [],
+      "effect": {
+        "type": "special",
+        "name": "Aqirbane Reliquary",
+        "level": 334
+      },
+      "uniqueHash": "26826580496",
+      "uniqueEquip": [],
+      "active": true,
+      "vaultItem": false,
+      "exclusiveItem": false,
+      "isEquipped": true,
+      "source": {},
+      "onUse": false,
+      "setID": "",
+      "quality": 4,
+      "upgradeTrack": "Myth",
+      "upgradeRank": 6,
+      "itemConversion": 0,
+      "bonusIDS": "6652:13668:13334:13987:12854",
+      "isCatalystItem": false,
+      "overriddenName": false,
+      "offhandID": 0,
+      "gemString": "240983:240910",
+      "flags": []
+    }
+  ],
+  "gameType": "Retail"
+}
