@@ -8,14 +8,10 @@
 // as markup.
 
 // ---------------------------------------------------------------------
-// Config: things the data does not tell us.
+// Config: things older data does not tell us.
 //
-// The pipeline's JSON has no notion of "spec" (see site/data/*.json --
-// characters only carry name/realm/region/gear/reports). There is no way to
-// derive a spec from equipped item ids without a talent/build lookup this
-// static page does not have, so it is hardcoded here per character name.
-// Add an entry for any character that should show something other than the
-// fallback.
+// Characters carry "class" and "spec" (e.g. "Priest" / "Holy"). Runs published
+// before those fields existed fall back to this per-name spec label.
 // ---------------------------------------------------------------------
 const CONFIG = {
   characterSpecByName: {
@@ -131,8 +127,11 @@ function realmRegionLabel(realm, region) {
   return [r, g].filter(Boolean).join(" ");
 }
 
-function specFor(name) {
-  // hasOwn, so a character called "constructor" doesn't pick up Object.prototype.
+function specLabel(character) {
+  const { spec, class: cls, name } = character;
+  if (typeof spec === "string" && typeof cls === "string" && spec && cls) return `${spec} ${cls}`;
+  // Runs published before the summary carried class/spec. hasOwn, so a character called
+  // "constructor" doesn't pick up Object.prototype.
   return Object.hasOwn(CONFIG.characterSpecByName, name)
     ? CONFIG.characterSpecByName[name]
     : CONFIG.unknownSpecLabel;
@@ -352,7 +351,7 @@ function renderHeader(indexData) {
 
   const chars = Array.isArray(latest.characters) ? latest.characters : [];
   chars.forEach((c) => {
-    els.headerCapsules.appendChild(characterCapsule(c.name, c.realm, c.region));
+    els.headerCapsules.appendChild(characterCapsule(c));
   });
 
   const statusPill = h("span", {
@@ -377,9 +376,10 @@ function renderHeader(indexData) {
   els.headerUpdated.appendChild(updated);
 }
 
-function characterCapsule(name, realm, region) {
+function characterCapsule(character) {
+  const { name, realm, region } = character;
   const rr = realmRegionLabel(realm, region);
-  const parts = [name || "Unknown character", specFor(name)];
+  const parts = [name || "Unknown character", specLabel(character)];
   if (rr) parts.push(rr);
   return h("span", { className: "capsule" }, [
     h("span", { className: "capsule__dot" }),
