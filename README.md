@@ -6,7 +6,8 @@ This keeps WoWAudit wishlists up to date for healers, without anyone at the keyb
 wishlist.toml character
   → SimC profile        (Raider.io API by default, Blizzard API, or a pasted /simc export)
   → QE Live Upgrade Finder report   (headless Chromium via Playwright)
-  → WoWAudit wishlist   (POST https://wowaudit.com/v1/wishlists)
+  → WoWAudit wishlist   (your own login session, or the team API key)
+  → dashboard           (GitHub Pages)
 ```
 
 QE Live's Upgrade Finder only supports healer specs, so the pipeline skips everyone else.
@@ -32,11 +33,21 @@ run applies, and `simc_source` picks where the gear comes from:
 - `blizzard` is the Blizzard Profile API, which updates when the character logs out. It needs the
   two Blizzard secrets.
 
+The `[qe]` settings mirror the guild's droptimizer rules. `auto_gem = false` means no sockets get
+added, and `upgrade_all_to_max = true` counts your equipped gear at its max upgrade level (the
+closest thing QE has to Raidbots' "Match Droptimizer Item Levels").
+
+`raid_difficulty` can be a single difficulty or a list. QE only runs one difficulty per report,
+so every difficulty in the list becomes its own report and its own WoWAudit upload, in the
+listed order. Keep `"Mythic"` last. Where two reports overlap (the +10 dungeon items), the last
+upload wins, and the Mythic numbers are the ones the guild wants. The current setting is
+`["Heroic", "Mythic"]`.
+
 ### 3. Runner
 
 The workflow (`.github/workflows/update-wishlists.yml`) runs every day at 06:00 UTC, and you can
 also start it by hand from the Actions tab. A manual run can take a raw `/simc` export instead of
-using the Blizzard API, and that export includes your bags and currencies.
+using Raider.io, and that export includes your bags and currencies.
 
 The job runs inside the `mcr.microsoft.com/playwright/python` container, so any runner with
 Docker works:
@@ -46,22 +57,35 @@ Docker works:
   (repo → Settings → Actions → Runners → New self-hosted runner), then set the repository
   variable `RUNS_ON` to `["self-hosted","linux"]`.
 
-Keep this repository **private**, and keep the workflow limited to `schedule` and
-`workflow_dispatch`. A `pull_request` trigger on a self-hosted runner would let untrusted
-code run on your homelab.
+This repository is **public** (for the free dashboard), so it stays on GitHub-hosted runners.
+Don't point `RUNS_ON` at a self-hosted homelab runner while it's public, and keep the workflow
+limited to `schedule` and `workflow_dispatch`. A `pull_request` trigger on a self-hosted runner
+would let anyone's fork run code on your homelab. The publish and save-overrides jobs always run
+on `ubuntu-latest`.
 
 ## Local usage
 
 ```bash
 uv sync
 uv run playwright install chromium
-export WOWAUDIT_API_KEY=...        # Raider.io needs nothing
+# WoWAudit: your saved login (or WOWAUDIT_API_KEY). Raider.io needs nothing.
+export WOWAUDIT_SESSION_FILE=~/.config/wishlist-updater/wowaudit-session.json
 
 uv run wishlist-updater --dry-run --headed               # watch it, skip WoWAudit
 uv run wishlist-updater --character Shiftheal --simc-file my.simc
 uv run pytest                                            # offline tests
 uv run pytest -m live                                    # hits real sites
 ```
+
+## Dashboard
+
+Every workflow run is published to https://bmiest.github.io/bmiest_wowaudit_wishlist_updater/,
+including failed and report-only runs. It shows the run history, the Heroic and Mythic reports
+with their top upgrades, and the gear you had equipped. The history lives on the
+`dashboard-data` branch, which keeps the newest 200 runs.
+
+The site is public, so it only gets data that is public anyway: gear, QE report results and run
+status. Your WoWAudit session, your wishlist and the raw `/simc` export never go there.
 
 ## Limitations
 
@@ -81,3 +105,7 @@ uv run pytest -m live                                    # hits real sites
   exports, because Raider.io and Warcraft Logs exports lack these fields.
 - The QE Live automation drives the website's UI, so a QE redesign can break it. When a run
   fails, the workflow uploads screenshots as an artifact.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
