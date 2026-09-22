@@ -69,9 +69,12 @@ uv run pytest -m live                                    # hits real sites
   and upgrade currencies from the in-game addon are missing unless you pass a `/simc` export.
 - Neither API exposes `redirected_base_stats` (catalysed tier pieces) or `crafted_stats` (crafted
   items), and without them QE's upgrade values are off by up to about 50%. `wishlist.toml`
-  therefore stores them per slot in `item_overrides`, which you extract from a `/simc` export with
-  `uv run wishlist-updater --extract-overrides export.txt`. An override applies only while
-  that slot still holds the same item. After you swap a tier or crafted item, the run summary
-  warns you to refresh the overrides.
+  therefore stores them per slot in `item_overrides`. An override applies only while that
+  slot still holds the same item. After you catalyse a tier piece or equip a new crafted item,
+  the run summary warns you. To refresh, paste an in-game `/simc` export into the workflow's
+  manual-run form (Actions → Update WoWAudit wishlists → Run workflow → `simc`). That run
+  uses your full export and saves the new overrides to `wishlist.toml`. Locally, run
+  `uv run wishlist-updater --refresh-overrides export.txt`. Only in-game addon exports are
+  accepted, because Raider.io and Warcraft Logs exports lack these fields.
 - QE Live automation drives the website UI, so a QE redesign can break it. When a run fails,
   it uploads screenshots as a workflow artifact.

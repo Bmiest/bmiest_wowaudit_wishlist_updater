@@ -2,6 +2,8 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from wishlist_updater.config import ItemOverride
 from wishlist_updater.overrides import apply_overrides, extract_overrides, to_toml
 from wishlist_updater.simc_source import build_simc_from_raiderio
@@ -84,3 +86,92 @@ def test_toml_round_trips_through_config(tmp_path):
     cfg = tmp_path / "w.toml"
     cfg.write_text('[[characters]]\nname = "Shiftheal"\nrealm = "ragnaros"\n' + to_toml(overrides))
     assert Config.load(cfg).characters[0].item_overrides == overrides
+
+
+# --- refreshing wishlist.toml in place -------------------------------------------
+
+from wishlist_updater import cli  # noqa: E402
+from wishlist_updater.config import Config  # noqa: E402
+from wishlist_updater.overrides import is_addon_export, replace_item_overrides  # noqa: E402
+
+REPO_CONFIG = Path(__file__).parent.parent / "wishlist.toml"
+
+TWO_CHARS = """# top comment
+[qe]
+mplus_level = 10
+
+[[characters]]
+name = "Shiftheal"
+realm = "ragnaros"
+
+# Regenerate after swapping tier/crafted items.
+[characters.item_overrides]
+head = { id = 1, redirected_base_stats = 2 }
+
+[[characters]]
+name = "Otherhealer"
+realm = "ragnaros"
+"""
+
+
+def test_is_addon_export():
+    assert is_addon_export(ADDON_SIMC)
+    assert not is_addon_export(RAIDERIO_SIMC)
+
+
+def test_replace_keeps_comments_and_other_characters():
+    new = {"waist": ItemOverride(239649, crafted_stats=(40, 36))}
+    out = replace_item_overrides(TWO_CHARS, "shiftheal", new)
+    assert "head = { id = 1" not in out
+    assert "waist = { id = 239649, crafted_stats = [40, 36] }" in out
+    assert "# Regenerate after swapping tier/crafted items." in out
+    assert out.count("[[characters]]") == 2 and 'name = "Otherhealer"' in out
+    chars = Config.load_text(out).characters
+    assert chars[0].item_overrides == new and chars[1].item_overrides == {}
+
+
+def test_replace_appends_table_when_missing():
+    new = {"head": ItemOverride(5, redirected_base_stats=6)}
+    out = replace_item_overrides(TWO_CHARS, "Otherhealer", new)
+    chars = Config.load_text(out).characters
+    assert chars[1].item_overrides == new
+    assert chars[0].item_overrides == {"head": ItemOverride(1, redirected_base_stats=2)}
+
+
+def test_replace_unknown_character():
+    with pytest.raises(ValueError, match="Nobody"):
+        replace_item_overrides(TWO_CHARS, "Nobody", {})
+
+
+def test_refresh_is_a_no_op_on_the_real_config_with_the_real_export(tmp_path):
+    cfg = tmp_path / "wishlist.toml"
+    cfg.write_text(REPO_CONFIG.read_text())
+    simc = tmp_path / "export.txt"
+    simc.write_text(ADDON_SIMC)
+    assert cli.main(["--config", str(cfg), "--refresh-overrides", str(simc)]) == 0
+    assert cfg.read_text() == REPO_CONFIG.read_text()
+
+
+def test_refresh_updates_after_a_swap(tmp_path, capsys):
+    cfg = tmp_path / "wishlist.toml"
+    cfg.write_text(REPO_CONFIG.read_text())
+    simc = tmp_path / "export.txt"
+    # Pretend a new catalysed helm (different id and origin) was equipped.
+    simc.write_text(
+        ADDON_SIMC.replace("head=,id=271555,", "head=,id=271999,").replace(
+            "redirected_base_stats=268242", "redirected_base_stats=268111"
+        )
+    )
+    assert cli.main(["--config", str(cfg), "--refresh-overrides", str(simc)]) == 0
+    head = Config.load(cfg).characters[0].item_overrides["head"]
+    assert head == ItemOverride(271999, redirected_base_stats=268111)
+    assert "updated (6 slots)" in capsys.readouterr().out
+
+
+def test_refresh_refuses_non_addon_exports(tmp_path):
+    cfg = tmp_path / "wishlist.toml"
+    cfg.write_text(REPO_CONFIG.read_text())
+    simc = tmp_path / "wcl.txt"
+    simc.write_text(RAIDERIO_SIMC)
+    assert cli.main(["--config", str(cfg), "--refresh-overrides", str(simc)]) == 2
+    assert cfg.read_text() == REPO_CONFIG.read_text()

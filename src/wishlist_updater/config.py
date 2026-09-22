@@ -79,9 +79,17 @@ class Config:
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
         try:
-            raw = tomllib.loads(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
         except FileNotFoundError as exc:
             raise ConfigError(f"Config file not found: {path}") from exc
+        return cls.load_text(text, path)
+
+    @classmethod
+    def load_text(cls, text: str, path: Path = DEFAULT_CONFIG_PATH) -> Config:
+        try:
+            raw = tomllib.loads(text)
+        except tomllib.TOMLDecodeError as exc:
+            raise ConfigError(f"{path}: {exc}") from exc
 
         chars = raw.get("characters") or []
         if not chars:

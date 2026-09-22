@@ -90,3 +90,53 @@ def to_toml(overrides: dict[str, ItemOverride]) -> str:
             parts.append(f"crafted_stats = [{', '.join(str(s) for s in o.crafted_stats)}]")
         lines.append(f"{slot} = {{ {', '.join(parts)} }}")
     return "\n".join(lines) + "\n"
+
+
+ADDON_MARKER = "# SimC Addon"
+_TABLE_HEADER_RE = re.compile(r"^\s*\[")
+_NAME_RE = re.compile(r'^\s*name\s*=\s*"(?P<name>[^"]*)"')
+
+
+def is_addon_export(simc_text: str) -> bool:
+    """Only the in-game addon sees item-link modifiers (catalyst origin, crafted stats).
+    Raider.io / Warcraft Logs / Armory exports lack them and would wipe good overrides."""
+    return any(line.startswith(ADDON_MARKER) for line in simc_text.splitlines()[:10])
+
+
+def replace_item_overrides(
+    toml_text: str, character_name: str, overrides: dict[str, ItemOverride]
+) -> str:
+    """Rewrite one character's [characters.item_overrides] table, keeping everything else
+    (comments, other characters, formatting) as it was."""
+    lines = toml_text.splitlines()
+    # Split into [[characters]] blocks: (start, end) line ranges.
+    starts = [i for i, line in enumerate(lines) if line.strip() == "[[characters]]"]
+    bounds = list(zip(starts, starts[1:] + [len(lines)], strict=True))
+    for start, end in bounds:
+        names = [m["name"] for line in lines[start:end] if (m := _NAME_RE.match(line))]
+        if not names or names[0].casefold() != character_name.casefold():
+            continue
+        body = to_toml(overrides).splitlines()[1:]
+        header = next(
+            (i for i in range(start, end) if lines[i].strip() == "[characters.item_overrides]"),
+            None,
+        )
+        if header is None:
+            insert_at = end
+            while insert_at > start and not lines[insert_at - 1].strip():
+                insert_at -= 1
+            new = ["", "[characters.item_overrides]", *body]
+            lines[insert_at:insert_at] = new
+        else:
+            stop = header + 1
+            while stop < end and not _TABLE_HEADER_RE.match(lines[stop]):
+                stop += 1
+            # Keep trailing blank lines/comments that belong to what follows.
+            keep_from = stop
+            while keep_from > header + 1 and (
+                not lines[keep_from - 1].strip() or lines[keep_from - 1].lstrip().startswith("#")
+            ):
+                keep_from -= 1
+            lines[header + 1 : keep_from] = body
+        return "\n".join(lines) + ("\n" if toml_text.endswith("\n") else "")
+    raise ValueError(f"No [[characters]] entry named {character_name!r} in the config")

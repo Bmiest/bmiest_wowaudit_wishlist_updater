@@ -73,6 +73,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="One-time setup: save your WoWAudit login session for keyless imports "
         "('cookie' pastes the _user_session cookie from your normal browser instead).",
     )
+    p.add_argument(
+        "--refresh-overrides",
+        type=Path,
+        metavar="SIMC_FILE",
+        help="Update the character's item_overrides in the config from an in-game /simc "
+        "export (after catalysing a tier piece or equipping a new crafted item) and exit.",
+    )
     p.add_argument("--dry-run", action="store_true", help="Generate reports but skip WoWAudit.")
     p.add_argument(
         "--summary-json",
@@ -319,6 +326,34 @@ async def run(args: argparse.Namespace) -> int:
     return 1 if any(o.error for o in outcomes) else 0
 
 
+def refresh_overrides(config_path: Path, simc_path: Path) -> int:
+    from wishlist_updater.overrides import is_addon_export, replace_item_overrides
+
+    simc_text = simc_path.read_text(encoding="utf-8")
+    if not is_addon_export(simc_text):
+        log.error(
+            "%s is not an in-game SimulationCraft addon export (no '# SimC Addon' header). "
+            "Raider.io / Warcraft Logs exports lack the catalyst and crafted stats.",
+            simc_path,
+        )
+        return 2
+    name = parse_simc_text(simc_text).name
+    overrides = extract_overrides(simc_text)
+    config_text = config_path.read_text(encoding="utf-8")
+    try:
+        updated = replace_item_overrides(config_text, name, overrides)
+    except ValueError as exc:
+        log.error("%s", exc)
+        return 2
+    Config.load_text(updated, config_path)  # never write a config that doesn't load
+    if updated == config_text:
+        print(f"{name}: item overrides already up to date ({len(overrides)} slots)")
+        return 0
+    config_path.write_text(updated, encoding="utf-8")
+    print(f"{name}: item overrides updated ({len(overrides)} slots) in {config_path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.wowaudit_login:
@@ -332,6 +367,8 @@ def main(argv: list[str] | None = None) -> int:
         repo = "Bmiest/bmiest_wowaudit_wishlist_updater"
         print(f"  gh secret set WOWAUDIT_SESSION -R {repo} < {path}")
         return 0
+    if args.refresh_overrides:
+        return refresh_overrides(args.config, args.refresh_overrides)
     if args.extract_overrides:
         overrides = extract_overrides(args.extract_overrides.read_text())
         print("# Paste under the matching [[characters]] entry in wishlist.toml")

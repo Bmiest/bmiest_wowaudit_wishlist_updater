@@ -13,7 +13,7 @@ on:
         required: false
         default: ""
       simc:
-        description: "Optional /simc addon export to use instead of Raider.io (needs 'character')"
+        description: "Optional in-game /simc export: used for this run AND saved as the new item overrides (needs 'character')"
         required: false
         default: ""
       dry_run:
@@ -98,6 +98,39 @@ jobs:
           path: screenshots/
           if-no-files-found: ignore
           retention-days: 7
+
+  # A pasted /simc export also refreshes the catalyst / crafted-stat overrides in
+  # wishlist.toml, so later Raider.io runs stay accurate. Pure data: no browser, no
+  # external sites, and the only job allowed to push to main.
+  save-overrides:
+    needs: update
+    if: ${{ !cancelled() && inputs.simc != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Refresh item overrides
+        env:
+          INPUT_SIMC: ${{ inputs.simc }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$INPUT_SIMC" > "$RUNNER_TEMP/simc.txt"
+          uv run --no-dev wishlist-updater --refresh-overrides "$RUNNER_TEMP/simc.txt"
+          if ! git diff --quiet -- wishlist.toml; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -qm "Refresh item overrides from /simc export (run $GITHUB_RUN_ID)" -- wishlist.toml
+            git pull -q --rebase origin main  # main may have moved during the run
+            git push -q origin HEAD:main
+          fi
 
   # Publishes the run (also a failed one) to the GitHub Pages dashboard. History lives on
   # the dashboard-data branch; only public data is in the summary (see summary.py).
