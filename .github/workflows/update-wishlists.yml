@@ -1,0 +1,81 @@
+name: Update WoWAudit wishlists
+
+# Only scheduled and manual triggers. Never add pull_request / pull_request_target:
+# once this runs on the self-hosted homelab runner, that would let untrusted code
+# execute on the homelab host with access to secrets.
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily 06:00 UTC, after most profiles have refreshed
+  workflow_dispatch:
+    inputs:
+      character:
+        description: "Only this character (blank = all in wishlist.toml)"
+        required: false
+        default: ""
+      simc:
+        description: "Optional /simc addon export to use instead of the Blizzard API (needs 'character')"
+        required: false
+        default: ""
+      dry_run:
+        description: "Generate QE reports but don't import into WoWAudit"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-wishlists
+  cancel-in-progress: false
+
+jobs:
+  update:
+    # GitHub-hosted by default. To move to the homelab runner, set the repo variable
+    # RUNS_ON to a JSON label list, e.g. ["self-hosted","linux"].
+    runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
+    timeout-minutes: 30
+    # The Playwright image ships Chromium plus its system deps, so the runner host
+    # needs only Docker. The tag must match the playwright pin in pyproject.toml.
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.63.0-noble
+      options: --init --ipc=host
+    env:
+      UV_PYTHON_PREFERENCE: only-system
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Install
+        run: uv sync --locked --no-dev
+
+      - name: Update wishlists
+        env:
+          WOWAUDIT_API_KEY: ${{ secrets.WOWAUDIT_API_KEY }}
+          BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+          BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+          # Inputs go through env vars, never ${{ }} inside the script (injection).
+          INPUT_CHARACTER: ${{ inputs.character }}
+          INPUT_SIMC: ${{ inputs.simc }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "${INPUT_CHARACTER:-}" ]; then args+=(--character "$INPUT_CHARACTER"); fi
+          if [ "${INPUT_DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
+          if [ -n "${INPUT_SIMC:-}" ]; then
+            printf '%s\n' "$INPUT_SIMC" > "$RUNNER_TEMP/simc.txt"
+            args+=(--simc-file "$RUNNER_TEMP/simc.txt")
+          fi
+          uv run --no-sync wishlist-updater "${args[@]}"
+
+      - name: Upload debug screenshots
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qe-debug-${{ github.run_id }}
+          path: screenshots/
+          if-no-files-found: ignore
+          retention-days: 7

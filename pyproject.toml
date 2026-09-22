@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.27",
-    "playwright>=1.47",
+    # Keep in lockstep with the mcr.microsoft.com/playwright/python image tag in
+    # .github/workflows/update-wishlists.yml (the image ships the matching browser).
+    "playwright==1.63.0",
 ]
 
 [project.scripts]
