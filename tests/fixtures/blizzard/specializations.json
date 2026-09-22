@@ -1,0 +1,30 @@
+{
+  "character": {
+    "name": "Shiftheal",
+    "realm": {
+      "slug": "ragnaros"
+    }
+  },
+  "specializations": [
+    {
+      "specialization": {
+        "id": 257,
+        "name": "Holy"
+      },
+      "loadouts": [
+        {
+          "talent_loadout_code": "CEQAR03Gt7xPmcDNOjs2Zlb3yCDAAAAAAgZmxsMmZMzYYGYZmZmBAAAwYmlZwMzM2mxMDgZKAmZDDhxsMAjBWMzMLAaGzMGDmBYmZAD",
+          "is_active": true
+        },
+        {
+          "talent_loadout_code": "CEQAR03Gt7xPmcDNOjs2Zlb3yyYAAAAAAAMzMmlBMzMDzMzYZmZmBAAAwYmlZwMzM2MmZMgZAAMzmZY2MAwYwmxYBgZMzYMYmtlBYAD",
+          "is_active": false
+        }
+      ]
+    }
+  ],
+  "active_specialization": {
+    "id": 257,
+    "name": "Holy"
+  }
+}

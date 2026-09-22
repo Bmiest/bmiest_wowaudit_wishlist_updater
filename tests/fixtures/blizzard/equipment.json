@@ -1,0 +1,596 @@
+{
+  "character": {
+    "name": "Shiftheal",
+    "realm": {
+      "slug": "ragnaros"
+    }
+  },
+  "equipped_item_set_bonuses": [],
+  "equipped_items": [
+    {
+      "item": {
+        "id": 271555
+      },
+      "slot": {
+        "type": "HEAD",
+        "name": "Head"
+      },
+      "name": "Cosmic Penitent's Truesight",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 321
+      },
+      "bonus_list": [
+        12846,
+        13334,
+        6652,
+        13696,
+        13692,
+        13698,
+        1574
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 7961",
+          "enchantment_id": 7961,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        },
+        {
+          "display_string": "Fishing bonus",
+          "enchantment_id": 99999,
+          "enchantment_slot": {
+            "id": 2,
+            "type": "TEMPORARY"
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 268265
+      },
+      "slot": {
+        "type": "NECK",
+        "name": "Neck"
+      },
+      "name": "Aqirbane Reliquary",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 334
+      },
+      "bonus_list": [
+        6652,
+        13668,
+        13334,
+        13987,
+        12854
+      ],
+      "sockets": [
+        {
+          "socket_type": {
+            "type": "PRISMATIC",
+            "name": "Prismatic"
+          },
+          "item": {
+            "id": 240983
+          }
+        },
+        {
+          "socket_type": {
+            "type": "PRISMATIC",
+            "name": "Prismatic"
+          },
+          "item": {
+            "id": 240910
+          }
+        },
+        {
+          "socket_type": {
+            "type": "PRISMATIC",
+            "name": "Prismatic"
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 271553
+      },
+      "slot": {
+        "type": "SHOULDER",
+        "name": "Shoulder"
+      },
+      "name": "Cosmic Penitent's Echoing Screams",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 321
+      },
+      "bonus_list": [
+        6652,
+        13440,
+        13694,
+        13697,
+        12846
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 8031",
+          "enchantment_id": 8031,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 159288
+      },
+      "slot": {
+        "type": "BACK",
+        "name": "Back"
+      },
+      "name": "Cloak of the Restless Tribes",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 311
+      },
+      "bonus_list": [
+        12843,
+        13440,
+        6652,
+        13662,
+        12699
+      ]
+    },
+    {
+      "item": {
+        "id": 271558
+      },
+      "slot": {
+        "type": "CHEST",
+        "name": "Chest"
+      },
+      "name": "Cosmic Penitent's Eclipsing Robes",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 321
+      },
+      "bonus_list": [
+        13334,
+        6652,
+        13690,
+        13698,
+        12846
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 7987",
+          "enchantment_id": 7987,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 89195
+      },
+      "slot": {
+        "type": "SHIRT",
+        "name": "Shirt"
+      },
+      "name": "Artisan Officer's Shirt",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 1
+      }
+    },
+    {
+      "item": {
+        "id": 36941
+      },
+      "slot": {
+        "type": "TABARD",
+        "name": "Tabard"
+      },
+      "name": "Competitor's Tabard",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 1
+      }
+    },
+    {
+      "item": {
+        "id": 251154
+      },
+      "slot": {
+        "type": "WRIST",
+        "name": "Wrist"
+      },
+      "name": "Winter's Embrace Bracers",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 311
+      },
+      "bonus_list": [
+        12843,
+        13440,
+        6652,
+        13695,
+        13662,
+        12699
+      ],
+      "sockets": [
+        {
+          "socket_type": {
+            "type": "PRISMATIC",
+            "name": "Prismatic"
+          },
+          "item": {
+            "id": 240910
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 251129
+      },
+      "slot": {
+        "type": "HANDS",
+        "name": "Hands"
+      },
+      "name": "Counterfeit Clutches",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 321
+      },
+      "bonus_list": [
+        13440,
+        6652,
+        13662,
+        12699,
+        12846
+      ]
+    },
+    {
+      "item": {
+        "id": 239649
+      },
+      "slot": {
+        "type": "WAIST",
+        "name": "Waist"
+      },
+      "name": "Martyr's Waistwrap",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 331
+      },
+      "bonus_list": [
+        12214,
+        13667,
+        12497,
+        13751,
+        14001,
+        8960,
+        12384,
+        8795,
+        13836,
+        13696
+      ],
+      "modified_crafting_stat": [
+        {
+          "id": 40
+        },
+        {
+          "type": "HASTE_RATING"
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 271554
+      },
+      "slot": {
+        "type": "LEGS",
+        "name": "Legs"
+      },
+      "name": "Enveloping Legwraps of the Cosmic Penitent",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 321
+      },
+      "bonus_list": [
+        13334,
+        6652,
+        13693,
+        13698,
+        12846
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 7937",
+          "enchantment_id": 7937,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 268218
+      },
+      "slot": {
+        "type": "FEET",
+        "name": "Feet"
+      },
+      "name": "Nek'zali's Spiritwalkers",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 318
+      },
+      "bonus_list": [
+        6652,
+        13662,
+        13335,
+        12849
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 8019",
+          "enchantment_id": 8019,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 251136
+      },
+      "slot": {
+        "type": "FINGER_1",
+        "name": "Finger 1"
+      },
+      "name": "Signet of Snarling Servitude",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 321
+      },
+      "bonus_list": [
+        13440,
+        6652,
+        13668,
+        12699,
+        12846
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 7967",
+          "enchantment_id": 7967,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        }
+      ],
+      "sockets": [
+        {
+          "socket_type": {
+            "type": "PRISMATIC",
+            "name": "Prismatic"
+          },
+          "item": {
+            "id": 240910
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 158366
+      },
+      "slot": {
+        "type": "FINGER_2",
+        "name": "Finger 2"
+      },
+      "name": "Charged Sandstone Band",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 321
+      },
+      "bonus_list": [
+        13440,
+        6652,
+        13668,
+        12699,
+        12846
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 7967",
+          "enchantment_id": 7967,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        }
+      ],
+      "sockets": [
+        {
+          "socket_type": {
+            "type": "PRISMATIC",
+            "name": "Prismatic"
+          },
+          "item": {
+            "id": 240910
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 270167
+      },
+      "slot": {
+        "type": "TRINKET_1",
+        "name": "Trinket 1"
+      },
+      "name": "Wavecaller's Seastone",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 334
+      },
+      "bonus_list": [
+        6652,
+        13335,
+        12854
+      ]
+    },
+    {
+      "item": {
+        "id": 270162
+      },
+      "slot": {
+        "type": "TRINKET_2",
+        "name": "Trinket 2"
+      },
+      "name": "Soulcoiler Ritual Vessel",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 334
+      },
+      "bonus_list": [
+        6652,
+        13335,
+        12854
+      ]
+    },
+    {
+      "item": {
+        "id": 271092
+      },
+      "slot": {
+        "type": "MAIN_HAND",
+        "name": "Main Hand"
+      },
+      "name": "Jan'thrazet, the Soul Fang",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 334
+      },
+      "bonus_list": [
+        40,
+        13334,
+        12854
+      ],
+      "enchantments": [
+        {
+          "display_string": "Enchanted: Test Enchant 8039",
+          "enchantment_id": 8039,
+          "enchantment_slot": {
+            "id": 0,
+            "type": "PERMANENT"
+          }
+        }
+      ]
+    },
+    {
+      "item": {
+        "id": 245769
+      },
+      "slot": {
+        "type": "OFF_HAND",
+        "name": "Off Hand"
+      },
+      "name": "Aln'hara Lantern",
+      "quality": {
+        "type": "EPIC",
+        "name": "Epic"
+      },
+      "level": {
+        "value": 331
+      },
+      "bonus_list": [
+        12214,
+        12497,
+        13751,
+        14001,
+        13771,
+        8960,
+        8790,
+        13836
+      ],
+      "modified_crafting_stat": [
+        {
+          "type": "CRIT_RATING"
+        },
+        {
+          "id": 40
+        }
+      ]
+    }
+  ]
+}

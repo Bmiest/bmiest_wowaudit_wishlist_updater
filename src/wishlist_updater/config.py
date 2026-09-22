@@ -19,6 +19,11 @@ class ConfigError(RuntimeError):
     pass
 
 
+def realm_slug(realm: str) -> str:
+    """'Twisting Nether' / "Azjol-Nerub" / "Kel'Thuzad" -> Blizzard API slug."""
+    return realm.strip().lower().replace("'", "").replace(" ", "-")
+
+
 @dataclass(frozen=True)
 class Character:
     name: str
@@ -70,7 +75,7 @@ class Config:
             characters = tuple(
                 Character(
                     name=c["name"],
-                    realm=c["realm"].lower(),
+                    realm=realm_slug(c["realm"]),
                     region=c.get("region", "eu").lower(),
                 )
                 for c in chars

@@ -1,0 +1,32 @@
+{
+  "id": 123456789,
+  "name": "Shiftheal",
+  "gender": {
+    "type": "FEMALE",
+    "name": "Female"
+  },
+  "faction": {
+    "type": "HORDE",
+    "name": "Horde"
+  },
+  "race": {
+    "id": 52,
+    "name": "Dracthyr"
+  },
+  "character_class": {
+    "id": 5,
+    "name": "Priest"
+  },
+  "active_spec": {
+    "id": 257,
+    "name": "Holy"
+  },
+  "realm": {
+    "id": 1305,
+    "name": "Ragnaros",
+    "slug": "ragnaros"
+  },
+  "level": 90,
+  "average_item_level": 322,
+  "equipped_item_level": 321
+}
