@@ -13,7 +13,7 @@ on:
         required: false
         default: ""
       simc:
-        description: "Optional /simc addon export to use instead of the Blizzard API (needs 'character')"
+        description: "Optional /simc addon export to use instead of Raider.io (needs 'character')"
         required: false
         default: ""
       dry_run:
@@ -54,6 +54,9 @@ jobs:
       - name: Update wishlists
         env:
           WOWAUDIT_API_KEY: ${{ secrets.WOWAUDIT_API_KEY }}
+          # Optional: RAIDERIO_API_KEY only raises the rate limit; the Blizzard pair
+          # is only needed when wishlist.toml sets simc_source = "blizzard".
+          RAIDERIO_API_KEY: ${{ secrets.RAIDERIO_API_KEY }}
           BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
           BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
           # Inputs go through env vars, never ${{ }} inside the script (injection).

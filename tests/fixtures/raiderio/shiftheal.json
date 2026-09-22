@@ -1,0 +1,299 @@
+{
+  "name": "Shiftheal",
+  "race": "Dracthyr",
+  "class": "Priest",
+  "active_spec_name": "Holy",
+  "active_spec_role": "HEALING",
+  "realm": "Ragnaros",
+  "region": "eu",
+  "profile_url": "https://raider.io/characters/eu/ragnaros/Shiftheal",
+  "last_crawled_at": "2026-09-20T23:00:18.000Z",
+  "talentLoadout": {
+    "loadout_spec_id": 257,
+    "loadout_text": "CEQAAAAAAAAAAAAAAAAAAAAAAADAAAAAAgZmxsMmZMzYYGYZmZmBAAAwYmlZwMzM2mxMDgZKAmZDDhxsMAjBWMzMLAaGzMGDmBYmZAD"
+  },
+  "gear": {
+    "updated_at": "2026-09-16T21:19:35.215Z",
+    "item_level_equipped": 324,
+    "items": {
+      "head": {
+        "item_id": 271555,
+        "item_level": 321,
+        "name": "Cosmic Penitent's Truesight",
+        "enchant": 7961,
+        "enchants": [
+          7961
+        ],
+        "gems": [],
+        "bonuses": [
+          12846,
+          13334,
+          6652,
+          13696,
+          13692,
+          13698,
+          1574
+        ]
+      },
+      "neck": {
+        "item_id": 268265,
+        "item_level": 334,
+        "name": "Aqirbane Reliquary",
+        "enchant": null,
+        "enchants": [],
+        "gems": [
+          240983,
+          240910
+        ],
+        "bonuses": [
+          6652,
+          13668,
+          13334,
+          13987,
+          12854
+        ]
+      },
+      "shoulder": {
+        "item_id": 271553,
+        "item_level": 321,
+        "name": "Cosmic Penitent's Echoing Screams",
+        "enchant": 8031,
+        "enchants": [
+          8031
+        ],
+        "gems": [],
+        "bonuses": [
+          6652,
+          13440,
+          13694,
+          13697,
+          12846
+        ]
+      },
+      "back": {
+        "item_id": 159288,
+        "item_level": 311,
+        "name": "Cloak of the Restless Tribes",
+        "enchant": null,
+        "enchants": [],
+        "gems": [],
+        "bonuses": [
+          12843,
+          13440,
+          6652,
+          13662,
+          12699
+        ]
+      },
+      "chest": {
+        "item_id": 271558,
+        "item_level": 321,
+        "name": "Cosmic Penitent's Eclipsing Robes",
+        "enchant": 7987,
+        "enchants": [
+          7987
+        ],
+        "gems": [],
+        "bonuses": [
+          13334,
+          6652,
+          13690,
+          13698,
+          12846
+        ]
+      },
+      "waist": {
+        "item_id": 239649,
+        "item_level": 331,
+        "name": "Martyr's Waistwrap",
+        "enchant": null,
+        "enchants": [],
+        "gems": [],
+        "bonuses": [
+          12214,
+          13667,
+          12497,
+          13751,
+          14001,
+          8960,
+          12384,
+          8795,
+          13836,
+          13696
+        ]
+      },
+      "shirt": {
+        "item_id": 89195,
+        "item_level": 1,
+        "name": "Artisan Officer's Shirt",
+        "enchant": null,
+        "enchants": [],
+        "gems": [],
+        "bonuses": []
+      },
+      "wrist": {
+        "item_id": 251154,
+        "item_level": 311,
+        "name": "Winter's Embrace Bracers",
+        "enchant": null,
+        "enchants": [],
+        "gems": [
+          240910
+        ],
+        "bonuses": [
+          12843,
+          13440,
+          6652,
+          13695,
+          13662,
+          12699
+        ]
+      },
+      "hands": {
+        "item_id": 251129,
+        "item_level": 321,
+        "name": "Counterfeit Clutches",
+        "enchant": null,
+        "enchants": [],
+        "gems": [],
+        "bonuses": [
+          13440,
+          6652,
+          13662,
+          12699,
+          12846
+        ]
+      },
+      "legs": {
+        "item_id": 271554,
+        "item_level": 321,
+        "name": "Enveloping Legwraps of the Cosmic Penitent",
+        "enchant": 7937,
+        "enchants": [
+          7937
+        ],
+        "gems": [],
+        "bonuses": [
+          13334,
+          6652,
+          13693,
+          13698,
+          12846
+        ]
+      },
+      "feet": {
+        "item_id": 268218,
+        "item_level": 318,
+        "name": "Nek'zali's Spiritwalkers",
+        "enchant": 8019,
+        "enchants": [
+          8019
+        ],
+        "gems": [],
+        "bonuses": [
+          6652,
+          13662,
+          13335,
+          12849
+        ]
+      },
+      "finger1": {
+        "item_id": 251136,
+        "item_level": 321,
+        "name": "Signet of Snarling Servitude",
+        "enchant": 7967,
+        "enchants": [
+          7967
+        ],
+        "gems": [
+          240910
+        ],
+        "bonuses": [
+          13440,
+          6652,
+          13668,
+          12699,
+          12846
+        ]
+      },
+      "finger2": {
+        "item_id": 158366,
+        "item_level": 321,
+        "name": "Charged Sandstone Band",
+        "enchant": 7967,
+        "enchants": [
+          7967
+        ],
+        "gems": [
+          240910
+        ],
+        "bonuses": [
+          13440,
+          6652,
+          13668,
+          12699,
+          12846
+        ]
+      },
+      "trinket1": {
+        "item_id": 270167,
+        "item_level": 334,
+        "name": "Wavecaller's Seastone",
+        "enchant": null,
+        "enchants": [],
+        "gems": [],
+        "bonuses": [
+          6652,
+          13335,
+          12854
+        ]
+      },
+      "trinket2": {
+        "item_id": 270162,
+        "item_level": 334,
+        "name": "Soulcoiler Ritual Vessel",
+        "enchant": null,
+        "enchants": [],
+        "gems": [],
+        "bonuses": [
+          6652,
+          13335,
+          12854
+        ]
+      },
+      "mainhand": {
+        "item_id": 271092,
+        "item_level": 334,
+        "name": "Jan'thrazet, the Soul Fang",
+        "enchant": 8039,
+        "enchants": [
+          8039
+        ],
+        "gems": [],
+        "bonuses": [
+          40,
+          13334,
+          12854
+        ]
+      },
+      "offhand": {
+        "item_id": 245769,
+        "item_level": 331,
+        "name": "Aln'hara Lantern",
+        "enchant": null,
+        "enchants": [],
+        "gems": [],
+        "bonuses": [
+          12214,
+          12497,
+          13751,
+          14001,
+          13771,
+          8960,
+          8790,
+          13836
+        ]
+      }
+    }
+  }
+}

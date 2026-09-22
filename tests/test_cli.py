@@ -31,10 +31,12 @@ def uploads(monkeypatch):
     return calls
 
 
-async def _process(simc=ADDON_SIMC, *, dry_run=False, generate=fake_report, secrets=SECRETS):
+async def _process(
+    simc=ADDON_SIMC, *, dry_run=False, generate=fake_report, secrets=SECRETS, config=CONFIG
+):
     return await cli.process_character(
         SHIFTHEAL,
-        config=CONFIG,
+        config=config,
         secrets=secrets,
         simc_override=simc,
         generate_report=generate,
@@ -79,9 +81,24 @@ async def test_report_failure_is_captured_not_raised(uploads):
     assert uploads == []
 
 
-async def test_blizzard_path_requires_credentials(uploads):
-    outcome = await _process(simc=None)
+async def test_blizzard_source_requires_credentials(uploads):
+    config = Config(characters=(SHIFTHEAL,), qe=CONFIG.qe, simc_source="blizzard")
+    outcome = await _process(simc=None, config=config)
     assert outcome.error and "BLIZZARD_CLIENT_ID" in outcome.error
+
+
+async def test_raiderio_is_the_default_source(uploads, monkeypatch):
+    seen = {}
+
+    async def fake_raiderio(character, *, api_key=None):
+        seen["args"] = (character, api_key)
+        return cli.parse_simc_text(ADDON_SIMC)
+
+    monkeypatch.setattr(cli, "fetch_simc_from_raiderio", fake_raiderio)
+    secrets = Secrets(wowaudit_api_key="k", raiderio_api_key="rio")
+    outcome = await _process(simc=None, secrets=secrets)
+    assert outcome.uploaded
+    assert seen["args"] == (SHIFTHEAL, "rio")
 
 
 def test_select_characters():

@@ -4,7 +4,7 @@ Unattended pipeline that keeps WoWAudit wishlists current for healers:
 
 ```
 wishlist.toml character
-  → SimC profile        (Blizzard Profile API, or a pasted /simc export)
+  → SimC profile        (Raider.io API by default, Blizzard API, or a pasted /simc export)
   → QE Live Upgrade Finder report   (headless Chromium via Playwright)
   → WoWAudit wishlist   (POST https://wowaudit.com/v1/wishlists)
 ```
@@ -15,14 +15,21 @@ QE Live's Upgrade Finder only supports healer specs, so non-healers are skipped.
 
 ### 1. Credentials (GitHub → Settings → Secrets and variables → Actions)
 
-| Secret | Where to get it |
-|---|---|
-| `WOWAUDIT_API_KEY` | WoWAudit team settings → API (team admin only) |
-| `BLIZZARD_CLIENT_ID` / `BLIZZARD_CLIENT_SECRET` | https://develop.battle.net/access/clients → Create Client (free, no redirect URL needed) |
+| Secret | Required? | Where to get it |
+|---|---|---|
+| `WOWAUDIT_API_KEY` | **yes** | WoWAudit team settings → API (team admin only) |
+| `RAIDERIO_API_KEY` | no, only raises the rate limit | https://raider.io/settings/apps |
+| `BLIZZARD_CLIENT_ID` / `BLIZZARD_CLIENT_SECRET` | only with `simc_source = "blizzard"` | https://develop.battle.net/access/clients → Create Client |
 
 ### 2. Characters
 
 Edit `wishlist.toml`. The `[qe]` table holds the Upgrade Finder settings applied on every run.
+`simc_source` picks where the gear comes from:
+
+- `raiderio` (default): public Raider.io API, no credentials. The data is only as fresh as
+  Raider.io's last crawl of the character, which is usually within a day for active players.
+- `blizzard`: Blizzard Profile API, updated when the character logs out. It needs the two
+  Blizzard secrets.
 
 ### 3. Runner
 
@@ -47,7 +54,7 @@ code run on your homelab.
 ```bash
 uv sync
 uv run playwright install chromium
-export WOWAUDIT_API_KEY=... BLIZZARD_CLIENT_ID=... BLIZZARD_CLIENT_SECRET=...
+export WOWAUDIT_API_KEY=...        # Raider.io needs nothing
 
 uv run wishlist-updater --dry-run --headed               # watch it, skip WoWAudit
 uv run wishlist-updater --character Shiftheal --simc-file my.simc
@@ -57,9 +64,11 @@ uv run pytest -m live                                    # hits real sites
 
 ## Limitations
 
-- The Blizzard API only exposes **equipped** gear. Bag items, catalyst charges and upgrade
-  currencies from the in-game addon are missing unless you pass a `/simc` export.
-- Stats of catalysed tier pieces (`redirected_base_stats`) aren't in the API, so QE uses the
-  tier item's default secondary stats for those slots.
+- Raider.io and the Blizzard API only expose **equipped** gear. Bag items, catalyst charges
+  and upgrade currencies from the in-game addon are missing unless you pass a `/simc` export.
+- Neither API exposes `redirected_base_stats` (the stats of catalysed tier pieces), so QE uses
+  the tier item's default secondary stats for those slots.
+- Raider.io has no crafted stats. That's harmless: QE takes crafted stats from bonus IDs, and
+  those override the SimC `crafted_stats=` field anyway.
 - QE Live automation drives the website UI, so a QE redesign can break it. When a run fails,
   it uploads screenshots as a workflow artifact.

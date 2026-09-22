@@ -16,6 +16,7 @@ from wishlist_updater.simc_source import (
     HEALER_SPECS,
     SimcProfile,
     fetch_simc_from_blizzard,
+    fetch_simc_from_raiderio,
     parse_simc_text,
 )
 from wishlist_updater.wowaudit import upload_report
@@ -42,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--simc-file",
         type=Path,
-        help="Use this SimC export instead of the Blizzard API ('-' reads stdin). "
+        help="Use this SimC export instead of fetching one ('-' reads stdin). "
         "Requires exactly one character (use --character).",
     )
     p.add_argument("--dry-run", action="store_true", help="Generate reports but skip WoWAudit.")
@@ -61,17 +62,19 @@ def select_characters(config: Config, name: str | None) -> tuple[Character, ...]
 
 
 async def get_simc(
-    character: Character, secrets: Secrets, simc_override: str | None
+    character: Character, source: str, secrets: Secrets, simc_override: str | None
 ) -> SimcProfile:
     if simc_override is not None:
         profile = parse_simc_text(simc_override)
         if profile.name.lower() != character.name.lower():
             raise ConfigError(f"SimC export is for {profile.name!r}, not {character.name!r}")
         return profile
-    secrets.require("blizzard_client_id", "blizzard_client_secret")
-    return await fetch_simc_from_blizzard(
-        character, secrets.blizzard_client_id, secrets.blizzard_client_secret
-    )
+    if source == "blizzard":
+        secrets.require("blizzard_client_id", "blizzard_client_secret")
+        return await fetch_simc_from_blizzard(
+            character, secrets.blizzard_client_id, secrets.blizzard_client_secret
+        )
+    return await fetch_simc_from_raiderio(character, api_key=secrets.raiderio_api_key)
 
 
 async def process_character(
@@ -85,7 +88,7 @@ async def process_character(
 ) -> Outcome:
     outcome = Outcome(character)
     try:
-        profile = await get_simc(character, secrets, simc_override)
+        profile = await get_simc(character, config.simc_source, secrets, simc_override)
         if (profile.class_token, profile.spec_token) not in HEALER_SPECS:
             outcome.skipped = (
                 f"{profile.spec_token} {profile.class_token} is not a healer spec "

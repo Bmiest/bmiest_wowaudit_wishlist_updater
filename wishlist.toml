@@ -1,6 +1,11 @@
 # Characters whose QE Live upgrade report gets pushed to the WoWAudit wishlist.
 # QE Live's Upgrade Finder only supports healer specs.
 
+# Where the SimC profile comes from when no /simc export is passed in:
+#   "raiderio" -- public Raider.io API, no credentials needed (default)
+#   "blizzard" -- Blizzard Profile API, needs BLIZZARD_CLIENT_ID / BLIZZARD_CLIENT_SECRET
+simc_source = "raiderio"
+
 [qe]
 raid_difficulty = "Mythic"
 mplus_level = 10

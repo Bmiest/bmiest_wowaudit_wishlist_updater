@@ -22,6 +22,15 @@ def test_load(tmp_path):
     assert config.qe == {"mplus_level": 10}
 
 
+def test_load_defaults_to_raiderio_and_validates_source(tmp_path):
+    cfg = tmp_path / "w.toml"
+    cfg.write_text('[[characters]]\nname = "A"\nrealm = "b"\n')
+    assert Config.load(cfg).simc_source == "raiderio"
+    cfg.write_text('simc_source = "wcl"\n[[characters]]\nname = "A"\nrealm = "b"\n')
+    with pytest.raises(ConfigError, match="simc_source"):
+        Config.load(cfg)
+
+
 def test_load_rejects_empty(tmp_path):
     cfg = tmp_path / "w.toml"
     cfg.write_text("[qe]\n")

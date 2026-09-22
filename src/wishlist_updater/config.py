@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_CONFIG_PATH = Path("wishlist.toml")
+SIMC_SOURCES = ("raiderio", "blizzard")
 
 
 class ConfigError(RuntimeError):
@@ -38,8 +39,9 @@ class Character:
 @dataclass(frozen=True)
 class Secrets:
     wowaudit_api_key: str | None
-    blizzard_client_id: str | None
-    blizzard_client_secret: str | None
+    blizzard_client_id: str | None = None
+    blizzard_client_secret: str | None = None
+    raiderio_api_key: str | None = None  # optional; only raises Raider.io's rate limit
 
     @classmethod
     def from_env(cls) -> Secrets:
@@ -47,6 +49,7 @@ class Secrets:
             wowaudit_api_key=os.environ.get("WOWAUDIT_API_KEY") or None,
             blizzard_client_id=os.environ.get("BLIZZARD_CLIENT_ID") or None,
             blizzard_client_secret=os.environ.get("BLIZZARD_CLIENT_SECRET") or None,
+            raiderio_api_key=os.environ.get("RAIDERIO_API_KEY") or None,
         )
 
     def require(self, *names: str) -> None:
@@ -60,6 +63,7 @@ class Secrets:
 class Config:
     characters: tuple[Character, ...]
     qe: dict[str, object]
+    simc_source: str = "raiderio"
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -83,6 +87,10 @@ class Config:
         except KeyError as exc:
             raise ConfigError(f"{path}: character entry missing key {exc}") from exc
 
+        simc_source = raw.get("simc_source", "raiderio")
+        if simc_source not in SIMC_SOURCES:
+            raise ConfigError(f"{path}: simc_source must be one of {', '.join(SIMC_SOURCES)}")
+
         # QE settings are passed through to qe.QESettings(**qe) so the QE module
         # stays the single owner of which knobs exist.
-        return cls(characters=characters, qe=dict(raw.get("qe", {})))
+        return cls(characters=characters, qe=dict(raw.get("qe", {})), simc_source=simc_source)

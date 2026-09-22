@@ -12,8 +12,11 @@ from wishlist_updater.simc_source import (
     HEALER_SPECS,
     SLOT_ORDER,
     BlizzardAPIError,
+    RaiderIOError,
     build_simc,
+    build_simc_from_raiderio,
     fetch_simc_from_blizzard,
+    fetch_simc_from_raiderio,
     parse_simc_text,
 )
 
@@ -214,3 +217,112 @@ def test_blizzard_sample_fixture_is_current():
     )
     profile = build_simc(summary, equipment, specs, region="eu", now=datetime(2026, 9, 22, 21, 27))
     assert profile.text == (fixtures / "simc" / "shiftheal_blizzard.simc").read_text()
+
+
+# --- Raider.io -------------------------------------------------------------------
+
+RAIDERIO_JSON = json.loads(
+    (Path(__file__).parent / "fixtures" / "raiderio" / "shiftheal.json").read_text()
+)
+SHIFTHEAL = Character("Shiftheal", "ragnaros", "eu")
+
+
+def _raiderio_profile():
+    return build_simc_from_raiderio(
+        RAIDERIO_JSON, realm_slug="ragnaros", region="eu", now=datetime(2026, 9, 22, 21, 27)
+    )
+
+
+def test_raiderio_items_match_addon_export():
+    """Real Raider.io data vs. the real in-game export taken the same day.
+
+    Raider.io has no crafted stats (QE derives them from bonus IDs) and no tabard.
+    """
+    generated = _parse_item_lines(_raiderio_profile().text)
+    expected = _parse_item_lines(ADDON_SIMC)
+    for slot, fields in expected.items():
+        if slot == "tabard":
+            continue
+        fields = {k: v for k, v in fields.items() if k != "crafted_stats"}
+        assert generated[slot] == fields, slot
+
+
+def test_raiderio_header_and_identity():
+    profile = _raiderio_profile()
+    lines = profile.text.splitlines()
+    assert _LINE0_RE.match(lines[0]).group("name") == "Shiftheal"
+    assert lines[0].split("-")[0].replace("#", "").strip() == "Shiftheal"
+    class_idx = lines.index('priest="Shiftheal"')
+    assert class_idx < 8
+    assert "spec=holy" in lines[:10]
+    assert not any(line.startswith("level=") for line in lines)
+    assert f"talents={RAIDERIO_JSON['talentLoadout']['loadout_text']}" in lines
+    identity = (profile.name, profile.class_token, profile.spec_token)
+    assert identity == ("Shiftheal", "priest", "holy")
+    assert ("priest", "holy") in HEALER_SPECS
+
+
+async def test_fetch_simc_from_raiderio_request_shape():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = request.url
+        return httpx.Response(200, json=RAIDERIO_JSON)
+
+    async with _client(handler) as client:
+        profile = await fetch_simc_from_raiderio(SHIFTHEAL, api_key="rio-key", client=client)
+
+    assert seen["url"].host == "raider.io"
+    assert seen["url"].path == "/api/v1/characters/profile"
+    assert dict(seen["url"].params) == {
+        "region": "eu",
+        "realm": "ragnaros",
+        "name": "Shiftheal",
+        "fields": "gear,talents",
+        "access_key": "rio-key",
+    }
+    assert profile.name == "Shiftheal"
+
+
+async def test_fetch_simc_from_raiderio_without_key_omits_access_key():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(200, json=RAIDERIO_JSON)
+
+    async with _client(handler) as client:
+        await fetch_simc_from_raiderio(SHIFTHEAL, client=client)
+    assert "access_key" not in seen["params"]
+
+
+async def test_fetch_simc_from_raiderio_not_found_does_not_leak_key():
+    body = {
+        "statusCode": 400,
+        "error": "Bad Request",
+        "message": "Could not find requested character",
+    }
+
+    async with _client(lambda r: httpx.Response(400, json=body)) as client:
+        with pytest.raises(RaiderIOError) as exc:
+            await fetch_simc_from_raiderio(SHIFTHEAL, api_key="rio-secret", client=client)
+    assert "Could not find requested character" in str(exc.value)
+    assert "rio-secret" not in str(exc.value)
+
+
+async def test_fetch_simc_from_raiderio_network_error_does_not_leak_key():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError(f"boom connecting to {request.url}")
+
+    async with _client(handler) as client:
+        with pytest.raises(RaiderIOError) as exc:
+            await fetch_simc_from_raiderio(SHIFTHEAL, api_key="rio-secret", client=client)
+    assert "rio-secret" not in str(exc.value)
+    assert exc.value.__cause__ is None
+
+
+@pytest.mark.live
+async def test_live_raiderio_shiftheal():
+    profile = await fetch_simc_from_raiderio(SHIFTHEAL)
+    assert profile.class_token == "priest"
+    assert "main_hand=,id=" in profile.text
