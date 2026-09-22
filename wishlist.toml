@@ -1,0 +1,13 @@
+# Characters whose QE Live upgrade report gets pushed to the WoWAudit wishlist.
+# QE Live's Upgrade Finder only supports healer specs.
+
+[qe]
+raid_difficulty = "Mythic"
+mplus_level = 10
+crafted_ilvl = 331
+catalyst_limit = 4
+
+[[characters]]
+name = "Shiftheal"
+realm = "ragnaros"
+region = "eu"
