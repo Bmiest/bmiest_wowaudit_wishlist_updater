@@ -21,18 +21,21 @@ from wishlist_updater.simc_source import (
     parse_simc_text,
 )
 from wishlist_updater.wowaudit import upload_report
+from wishlist_updater.wowaudit_session import load_session
 
 log = logging.getLogger("wishlist_updater")
 
 # (simc, qe_settings) -> report URL. Injected so the pipeline is testable without a browser.
 ReportGenerator = Callable[[SimcProfile, dict[str, object]], Awaitable[str]]
+# (report URL, character name) -> None; raises if the import didn't happen.
+Uploader = Callable[[str, str], Awaitable[None]]
 
 
 @dataclass
 class Outcome:
     character: Character
     report_url: str | None = None
-    uploaded: bool = False
+    uploaded_via: str | None = None  # "API key" / "login session"; None = not uploaded
     skipped: str | None = None
     error: str | None = None
     warnings: list[str] = field(default_factory=list)
@@ -100,7 +103,8 @@ async def process_character(
     secrets: Secrets,
     simc_override: str | None,
     generate_report: ReportGenerator,
-    dry_run: bool,
+    upload: Uploader | None,
+    upload_method: str | None = None,
 ) -> Outcome:
     outcome = Outcome(character)
     try:
@@ -122,32 +126,47 @@ async def process_character(
         outcome.report_url = await generate_report(profile, config.qe)
         log.info("%s: report %s", character.label, outcome.report_url)
 
-        if dry_run:
+        if upload is None:
             return outcome
-        await upload_report(
-            outcome.report_url, secrets.wowaudit_api_key, character_name=profile.name
-        )
-        outcome.uploaded = True
-        log.info("%s: imported into WoWAudit", character.label)
+        await upload(outcome.report_url, profile.name)
+        outcome.uploaded_via = upload_method
+        log.info("%s: imported into WoWAudit (%s)", character.label, upload_method)
     except Exception as exc:  # one character failing must not stop the others
         log.exception("%s: failed", character.label)
         outcome.error = f"{type(exc).__name__}: {exc}"
     return outcome
 
 
-async def _playwright_report_generator(headed: bool):
-    """Return (generate, close): one browser, with a fresh context per report."""
-    from playwright.async_api import async_playwright
+def api_uploader(api_key: str) -> Uploader:
+    async def upload(report_url: str, character_name: str) -> None:
+        await upload_report(report_url, api_key, character_name=character_name)
 
-    from wishlist_updater import qe
+    return upload
 
-    pw = await async_playwright().start()
-    browser = await pw.chromium.launch(headless=not headed)
 
-    async def generate(profile: SimcProfile, qe_settings: dict[str, object]) -> str:
-        # A fresh context per character keeps QE's localStorage (saved characters,
-        # settings) from leaking between runs.
-        context = await browser.new_context(viewport={"width": 1600, "height": 1000})
+class Browser:
+    """One Chromium for the whole run, with a fresh context per QE report or WoWAudit upload."""
+
+    def __init__(self, headed: bool) -> None:
+        self.headed = headed
+
+    async def __aenter__(self) -> Browser:
+        from playwright.async_api import async_playwright
+
+        self._pw = await async_playwright().start()
+        self._browser = await self._pw.chromium.launch(headless=not self.headed)
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        await self._browser.close()
+        await self._pw.stop()
+
+    async def generate(self, profile: SimcProfile, qe_settings: dict[str, object]) -> str:
+        from wishlist_updater import qe
+
+        # A fresh context keeps QE's localStorage (saved characters, settings) from
+        # leaking between characters.
+        context = await self._browser.new_context(viewport={"width": 1600, "height": 1000})
         try:
             page = await context.new_page()
             return await qe.generate_upgrade_report(
@@ -156,11 +175,41 @@ async def _playwright_report_generator(headed: bool):
         finally:
             await context.close()
 
-    async def close() -> None:
-        await browser.close()
-        await pw.stop()
+    def session_uploader(self, session: dict, team_url: str) -> Uploader:
+        from wishlist_updater.wowaudit_web import upload_report_via_web
 
-    return generate, close
+        async def upload(report_url: str, character_name: str) -> None:
+            # The session only ever lives in this short-lived context, never in the QE ones.
+            context = await self._browser.new_context(storage_state=session)
+            try:
+                await upload_report_via_web(
+                    context, report_url, team_url=team_url, character_name=character_name
+                )
+            finally:
+                await context.close()
+
+        return upload
+
+
+def choose_upload(
+    args: argparse.Namespace, config: Config, secrets: Secrets
+) -> tuple[str | None, dict | None]:
+    """Pick how reports reach WoWAudit: ("API key", None), ("login session", state), or
+    (None, None) for report-only."""
+    if args.dry_run:
+        return None, None
+    if secrets.wowaudit_api_key:
+        return "API key", None
+    session = load_session()
+    if session is not None:
+        if not config.wowaudit_team_url:
+            raise ConfigError("WOWAUDIT_SESSION is set but wishlist.toml has no wowaudit_team_url")
+        return "login session", session
+    log.warning(
+        "Neither WOWAUDIT_API_KEY nor WOWAUDIT_SESSION is set: generating reports only; "
+        "paste them into WoWAudit"
+    )
+    return None, None
 
 
 def write_step_summary(outcomes: list[Outcome]) -> None:
@@ -173,8 +222,8 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
             result = f"❌ {o.error}"
         elif o.skipped:
             result = f"⏭️ {o.skipped}"
-        elif o.uploaded:
-            result = "✅ imported"
+        elif o.uploaded_via:
+            result = f"✅ imported via {o.uploaded_via}"
         else:
             result = "📋 report only: paste the link into WoWAudit"
         if o.warnings:
@@ -189,9 +238,7 @@ async def run(args: argparse.Namespace) -> int:
     config = Config.load(args.config)
     characters = select_characters(config, args.character)
     secrets = Secrets.from_env()
-    report_only = args.dry_run or not secrets.wowaudit_api_key
-    if report_only and not args.dry_run:
-        log.warning("WOWAUDIT_API_KEY not set: generating reports only; paste them into WoWAudit")
+    upload_method, session = choose_upload(args, config, secrets)
 
     simc_override = None
     if args.simc_file is not None:
@@ -201,25 +248,33 @@ async def run(args: argparse.Namespace) -> int:
             sys.stdin.read() if str(args.simc_file) == "-" else args.simc_file.read_text()
         )
 
-    generate, close = await _playwright_report_generator(args.headed)
-    try:
+    async with Browser(args.headed) as browser:
+        if upload_method == "API key":
+            upload = api_uploader(secrets.wowaudit_api_key)
+        elif upload_method == "login session":
+            upload = browser.session_uploader(session, config.wowaudit_team_url)
+        else:
+            upload = None
         outcomes = [
             await process_character(
                 c,
                 config=config,
                 secrets=secrets,
                 simc_override=simc_override,
-                generate_report=generate,
-                dry_run=report_only,
+                generate_report=browser.generate,
+                upload=upload,
+                upload_method=upload_method,
             )
             for c in characters
         ]
-    finally:
-        await close()
 
     write_step_summary(outcomes)
     for o in outcomes:
-        status = o.error or o.skipped or ("imported" if o.uploaded else "report only")
+        status = (
+            o.error
+            or o.skipped
+            or (f"imported via {o.uploaded_via}" if o.uploaded_via else "report only")
+        )
         print(f"{o.character.label}: {status} {o.report_url or ''}".rstrip())
     return 1 if any(o.error for o in outcomes) else 0
 

@@ -57,7 +57,10 @@ jobs:
 
       - name: Update wishlists
         env:
+          # WoWAudit import: the team API key if you have one, otherwise your own login
+          # session (from `wishlist-updater --wowaudit-login`). Neither = report only.
           WOWAUDIT_API_KEY: ${{ secrets.WOWAUDIT_API_KEY }}
+          WOWAUDIT_SESSION: ${{ secrets.WOWAUDIT_SESSION }}
           # Optional: RAIDERIO_API_KEY only raises the rate limit; the Blizzard pair
           # is only needed when wishlist.toml sets simc_source = "blizzard".
           RAIDERIO_API_KEY: ${{ secrets.RAIDERIO_API_KEY }}

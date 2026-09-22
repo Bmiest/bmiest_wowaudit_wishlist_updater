@@ -40,14 +40,15 @@ async def _process(
         secrets=secrets,
         simc_override=simc,
         generate_report=generate,
-        dry_run=dry_run,
+        upload=None if dry_run else cli.api_uploader(secrets.wowaudit_api_key),
+        upload_method=None if dry_run else "API key",
     )
 
 
 async def test_happy_path_uploads_report(uploads):
     outcome = await _process()
     assert outcome.error is None
-    assert outcome.uploaded
+    assert outcome.uploaded_via == "API key"
     assert outcome.report_url == REPORT_URL
     assert uploads == [(REPORT_URL, "k", "Shiftheal")]
 
@@ -55,7 +56,7 @@ async def test_happy_path_uploads_report(uploads):
 async def test_dry_run_skips_upload(uploads):
     outcome = await _process(dry_run=True)
     assert outcome.report_url == REPORT_URL
-    assert not outcome.uploaded
+    assert outcome.uploaded_via is None
     assert uploads == []
 
 
@@ -97,7 +98,7 @@ async def test_raiderio_is_the_default_source(uploads, monkeypatch):
     monkeypatch.setattr(cli, "fetch_simc_from_raiderio", fake_raiderio)
     secrets = Secrets(wowaudit_api_key="k", raiderio_api_key="rio")
     outcome = await _process(simc=None, secrets=secrets)
-    assert outcome.uploaded
+    assert outcome.uploaded_via
     assert seen["args"] == (SHIFTHEAL, "rio")
 
 
@@ -113,12 +114,12 @@ def test_step_summary(tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
     cli.write_step_summary(
         [
-            cli.Outcome(SHIFTHEAL, report_url=REPORT_URL, uploaded=True),
+            cli.Outcome(SHIFTHEAL, report_url=REPORT_URL, uploaded_via="login session"),
             cli.Outcome(SHIFTHEAL, error="Boom | pipe"),
         ]
     )
     text = summary.read_text()
-    assert "✅ imported" in text and f"[link]({REPORT_URL})" in text
+    assert "✅ imported via login session" in text and f"[link]({REPORT_URL})" in text
     assert "Boom / pipe" in text
 
 
@@ -146,7 +147,7 @@ async def test_overrides_applied_to_fetched_gear_not_to_simc_exports(uploads, mo
             secrets=SECRETS,
             simc_override=simc,
             generate_report=capture,
-            dry_run=True,
+            upload=None,
         )
         assert outcome.error is None
     assert "head=,id=1,redirected_base_stats=9,ilevel=5" in seen[0]
@@ -158,3 +159,51 @@ def test_step_summary_report_only(tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
     cli.write_step_summary([cli.Outcome(SHIFTHEAL, report_url=REPORT_URL)])
     assert "report only" in summary.read_text()
+
+
+@pytest.mark.parametrize(
+    "dry_run, api_key, session, expected",
+    [
+        (True, "k", '{"cookies": []}', None),
+        (False, "k", '{"cookies": []}', "API key"),  # the team key wins when both are set
+        (False, None, '{"cookies": []}', "login session"),
+        (False, None, None, None),
+    ],
+)
+def test_choose_upload(monkeypatch, dry_run, api_key, session, expected):
+    monkeypatch.delenv("WOWAUDIT_SESSION_FILE", raising=False)
+    if session:
+        monkeypatch.setenv("WOWAUDIT_SESSION", session)
+    else:
+        monkeypatch.delenv("WOWAUDIT_SESSION", raising=False)
+    args = cli.build_parser().parse_args(["--dry-run"] if dry_run else [])
+    config = Config(characters=(SHIFTHEAL,), qe={}, wowaudit_team_url="https://wowaudit.com/x")
+    method, state = cli.choose_upload(args, config, Secrets(wowaudit_api_key=api_key))
+    assert method == expected
+    assert (state is not None) == (expected == "login session")
+
+
+def test_choose_upload_session_needs_team_url(monkeypatch):
+    monkeypatch.setenv("WOWAUDIT_SESSION", '{"cookies": []}')
+    args = cli.build_parser().parse_args([])
+    config = Config(characters=(SHIFTHEAL,), qe={})
+    with pytest.raises(ConfigError, match="wowaudit_team_url"):
+        cli.choose_upload(args, config, Secrets(wowaudit_api_key=None))
+
+
+async def test_upload_failure_is_an_error_with_report_link_kept(uploads):
+    async def expired(report_url, character_name):
+        raise RuntimeError("Not logged in to WoWAudit. Run `wishlist-updater --wowaudit-login`")
+
+    outcome = await cli.process_character(
+        SHIFTHEAL,
+        config=CONFIG,
+        secrets=SECRETS,
+        simc_override=ADDON_SIMC,
+        generate_report=fake_report,
+        upload=expired,
+        upload_method="login session",
+    )
+    assert outcome.report_url == REPORT_URL
+    assert outcome.uploaded_via is None
+    assert "--wowaudit-login" in outcome.error

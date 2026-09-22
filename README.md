@@ -17,7 +17,8 @@ QE Live's Upgrade Finder only supports healer specs, so non-healers are skipped.
 
 | Secret | Required? | Where to get it |
 |---|---|---|
-| `WOWAUDIT_API_KEY` | no; without it the run only generates reports and lists their links in the run summary | WoWAudit team settings → API (team admin only) |
+| `WOWAUDIT_SESSION` | one of these two, or the run only generates reports and lists their links in the run summary | Your own WoWAudit login: run `uv run wishlist-updater --wowaudit-login`, then `gh secret set WOWAUDIT_SESSION < ~/.config/wishlist-updater/wowaudit-session.json`. It lasts about a year; when it expires, the run fails with a "log in again" message. |
+| `WOWAUDIT_API_KEY` | (alternative to the session) | WoWAudit team settings → API (team admin only). Takes precedence over the session. |
 | `RAIDERIO_API_KEY` | no, only raises the rate limit | https://raider.io/settings/apps |
 | `BLIZZARD_CLIENT_ID` / `BLIZZARD_CLIENT_SECRET` | only with `simc_source = "blizzard"` | https://develop.battle.net/access/clients → Create Client |
 
