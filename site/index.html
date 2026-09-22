@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://wow.zamimg.com; style-src 'self' https://fonts.googleapis.com https://wow.zamimg.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' https://wow.zamimg.com data:; connect-src 'self' https://nether.wowhead.com; base-uri 'none'; form-action 'none';">
+<title>WoWAudit wishlist dashboard</title>
+<meta name="description" content="Run history, QE Live upgrade reports and equipped gear from the WoWAudit wishlist automation.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="page">
+
+  <header class="dash-header">
+    <div class="rib rib--sm brand-rib" style="--acc:var(--jade)">
+      <div class="rib__bar"><div class="rib__in">
+        <span class="rib__acc"><svg viewBox="0 0 18 18" aria-hidden="true">
+          <path d="M9 2l1.8 4.4L15.5 7l-3.6 3.1 1.1 4.7L9 12.4l-4 2.4 1.1-4.7L2.5 7l4.7-.6z"
+                fill="currentColor"></path>
+        </svg></span>
+        <span class="rib__val">Wishlist dashboard</span>
+      </div></div>
+    </div>
+
+    <div id="headerCapsules" class="capsule-row"></div>
+    <div id="headerStatus" class="status-row"></div>
+    <div id="headerUpdated" class="updated-row"></div>
+  </header>
+
+  <div id="globalError" class="global-error" hidden></div>
+
+  <div id="viewingBanner" class="viewing-banner" hidden></div>
+
+  <main class="views">
+
+    <section class="view" aria-labelledby="reportsHeading">
+      <h2 id="reportsHeading" class="view__title">Latest reports</h2>
+      <div id="reportsContainer" class="reports-container"></div>
+    </section>
+
+    <section class="view" aria-labelledby="gearHeading">
+      <h2 id="gearHeading" class="view__title">Gear</h2>
+      <div id="gearContainer" class="gear-container"></div>
+    </section>
+
+    <section class="view" aria-labelledby="historyHeading">
+      <h2 id="historyHeading" class="view__title">Run history</h2>
+      <div id="historyContainer" class="history-container"></div>
+    </section>
+
+  </main>
+
+  <footer class="dash-footer">
+    <span>Updated after every automation run.</span>
+  </footer>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
