@@ -1,0 +1,22 @@
+{
+  "specs": [{"id": 257, "name": "Holy", "default": true}],
+  "items": [
+    {"id": 271434, "name": "Venom Rite Mantle", "slot": "shoulder", "wishes": []},
+    {
+      "id": 268242,
+      "name": "Example Item",
+      "slot": "head",
+      "wishes": [
+        {
+          "type": "qe",
+          "specialization": 257,
+          "configuration_id": 65057,
+          "difficulty": 0,
+          "percentage": 0.76,
+          "report_url": "https://questionablyepic.com/live/upgradereport/lcxtxzulnhiq",
+          "updated_at": "2026-09-22T20:40:00.000+00:00"
+        }
+      ]
+    }
+  ]
+}
