@@ -57,6 +57,7 @@ def test_build_summary_is_public_safe_and_grouped(monkeypatch):
     assert s["run"]["url"] == "https://github.com/o/r/actions/runs/42"
     assert s["run"]["ok"] is False
     [char] = s["characters"]
+    assert (char["class"], char["spec"]) == ("Priest", "Holy")
     assert [r["difficulty"] for r in char["reports"]] == ["Heroic", "Mythic"]
     assert char["reports"][0]["report_id"] == "aaa"
     text = json.dumps(s)

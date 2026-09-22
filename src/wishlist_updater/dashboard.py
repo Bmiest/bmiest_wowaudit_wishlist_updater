@@ -28,6 +28,8 @@ def run_header(summary: dict) -> dict:
                 "name": c["name"],
                 "realm": c["realm"],
                 "region": c["region"],
+                "class": c.get("class"),
+                "spec": c.get("spec"),
                 "error": c.get("error"),
                 "skipped": c.get("skipped"),
                 "warnings": c.get("warnings", []),

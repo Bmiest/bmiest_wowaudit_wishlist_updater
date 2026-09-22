@@ -115,6 +115,20 @@ def crest_upgrades(current: dict, capped: dict, gear: list[dict]) -> list[dict]:
     return upgrades
 
 
+def _class_and_spec(simc_text: str | None) -> dict:
+    """{"class": "Priest", "spec": "Holy"} for display, from the SimC identity lines."""
+    from wishlist_updater.simc_source import parse_simc_text
+
+    try:
+        profile = parse_simc_text(simc_text or "")
+    except ValueError:
+        return {"class": None, "spec": None}
+    return {
+        "class": profile.class_token.replace("_", " ").title(),
+        "spec": profile.spec_token.replace("_", " ").title(),
+    }
+
+
 def _report_id(url: str | None) -> str | None:
     return url.rstrip("/").rsplit("/", 1)[-1] if url else None
 
@@ -149,6 +163,7 @@ def build_summary(
                     "name": o.character.name,
                     "realm": o.character.realm,
                     "region": o.character.region,
+                    **_class_and_spec(o.simc),
                     "gear": parse_gear(o.simc) if o.simc else [],
                     "warnings": [],
                     "skipped": o.skipped,
