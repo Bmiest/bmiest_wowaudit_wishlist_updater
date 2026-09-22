@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets: never commit these
+.env
+.env.*
+!.env.example
+
+# Playwright persistent browser profile (holds login cookies)
+browser-profile/
+# Playwright debug artifacts
+playwright-report/
+test-results/
+traces/
+screenshots/
+
+# Local tooling
+AGENTS_BOARD.md
