@@ -326,8 +326,10 @@ function collectEls() {
     headerStatus: document.getElementById("headerStatus"),
     headerUpdated: document.getElementById("headerUpdated"),
     globalError: document.getElementById("globalError"),
+    headerMascot: document.getElementById("headerMascot"),
     viewingBanner: document.getElementById("viewingBanner"),
     reportsContainer: document.getElementById("reportsContainer"),
+    crestContainer: document.getElementById("crestContainer"),
     gearContainer: document.getElementById("gearContainer"),
     historyContainer: document.getElementById("historyContainer"),
   };
@@ -496,11 +498,62 @@ function renderViewingBanner(runId, isLatest) {
 }
 
 // ---------------------------------------------------------------------
+// Peon mascot -- follows the DISPLAYED run (not necessarily the true
+// latest), so it lives outside renderHeader() and is driven from
+// renderRunData() and the loader error paths instead.
+// ---------------------------------------------------------------------
+function renderMascot(runOk) {
+  clear(els.headerMascot);
+  if (!runOk) {
+    els.headerMascot.hidden = true;
+    return;
+  }
+  els.headerMascot.hidden = false;
+
+  const reduceMotion =
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let media;
+  if (reduceMotion) {
+    media = h("img", {
+      className: "mascot__media",
+      attrs: { src: "assets/peon-jobs-done.webp", alt: "Warcraft III peon: Jobs done" },
+    });
+  } else {
+    media = document.createElement("video");
+    media.className = "mascot__media";
+    media.setAttribute("poster", "assets/peon-jobs-done.webp");
+    media.setAttribute("src", "assets/peon-jobs-done.mp4");
+    media.setAttribute("autoplay", "");
+    media.setAttribute("loop", "");
+    media.setAttribute("muted", "");
+    media.setAttribute("playsinline", "");
+    media.setAttribute("aria-label", "Warcraft III peon: Jobs done");
+    media.setAttribute("role", "img");
+    // Chrome only honours autoplay when the *property* is muted too, not
+    // just the attribute.
+    media.muted = true;
+    media.autoplay = true;
+    media.loop = true;
+    media.playsInline = true;
+  }
+
+  els.headerMascot.appendChild(h("div", { className: "mascot-frame" }, [media]));
+
+  if (media.tagName === "VIDEO") {
+    const playPromise = media.play();
+    if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
+  }
+}
+
+// ---------------------------------------------------------------------
 // Reports (view 2) + Gear (view 3), built from a full run summary.
 // ---------------------------------------------------------------------
 function renderRunData(fullData) {
   clear(els.reportsContainer);
+  clear(els.crestContainer);
   clear(els.gearContainer);
+  renderMascot(Boolean(fullData.run && fullData.run.ok === true));
 
   const characters = Array.isArray(fullData.characters) ? fullData.characters : [];
   if (characters.length === 0) {
@@ -513,6 +566,9 @@ function renderRunData(fullData) {
   characters.forEach((character, idx) => {
     if (showCharHeading) {
       els.reportsContainer.appendChild(
+        h("h3", { className: "char-heading", text: character.name || `Character ${idx + 1}` })
+      );
+      els.crestContainer.appendChild(
         h("h3", { className: "char-heading", text: character.name || `Character ${idx + 1}` })
       );
       els.gearContainer.appendChild(
@@ -547,10 +603,110 @@ function renderRunData(fullData) {
       els.reportsContainer.appendChild(renderReportCard(report, key));
     });
 
+    els.crestContainer.appendChild(renderCrestPanel(character));
     els.gearContainer.appendChild(renderGearGrid(character));
   });
 
   refreshWowheadLinks();
+}
+
+// ---------------------------------------------------------------------
+// Crest planner (view: "Where to spend crests"), built from a full run
+// summary's crest_report/crest_upgrades. Both are optional and independent:
+// crest_report is {difficulty, report_id, report_url} | null,
+// crest_upgrades is a pre-sorted (desc, nulls last) array | null.
+// ---------------------------------------------------------------------
+function numOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function renderCrestPanel(character) {
+  const wrap = h("section", { className: "rcard-wrap" }, [
+    h("span", { className: "rcard__cap", text: character.name || "Crests" }),
+  ]);
+  const inner = h("div", { className: "rcard" }, [h("div", { className: "rcard__in" })]);
+  const body = inner.firstChild;
+  wrap.appendChild(inner);
+
+  const report = character.crest_report;
+  if (report && typeof report === "object") {
+    const url = isReportUrl(report.report_url);
+    const link = linkOrText(url, "Crest report ↗", { className: "report-card__link" });
+    if (typeof report.difficulty === "string" && report.difficulty) {
+      link.setAttribute("title", `${report.difficulty} crest report`);
+    }
+    body.appendChild(h("div", { className: "report-card__head" }, [link]));
+  }
+
+  const upgrades = character.crest_upgrades;
+  if (upgrades === null || upgrades === undefined) {
+    body.appendChild(h("p", { className: "muted-note", text: "No crest estimate for this run." }));
+    return wrap;
+  }
+  if (!Array.isArray(upgrades) || upgrades.length === 0) {
+    body.appendChild(h("p", { className: "muted-note", text: "Everything is fully upgraded." }));
+    return wrap;
+  }
+
+  const maxGain = upgrades.reduce((m, u) => {
+    const g = numOrNull(u.gain_pct);
+    return g !== null && g > m ? g : m;
+  }, 0.0001);
+
+  const rows = h("div", { className: "crest-rows" });
+  upgrades.forEach((u) => rows.appendChild(crestRow(u, maxGain)));
+  body.appendChild(rows);
+
+  return wrap;
+}
+
+function crestRow(u, maxGain) {
+  const level = numOrNull(u.level);
+  const maxLevel = numOrNull(u.max_level);
+  const rank = numOrNull(u.rank);
+  const itemIdNum = Number(u.item_id);
+
+  const url = wowheadItemUrl(u.item_id, null, u.level);
+  const label =
+    typeof u.name === "string" && u.name
+      ? u.name
+      : Number.isInteger(itemIdNum)
+        ? `Item ${itemIdNum}`
+        : "Unknown item";
+  const link = linkOrText(url, label, { className: "crest-row__item" });
+
+  const meta = h("div", { className: "crest-row__meta" }, [
+    link,
+    h("span", { className: "crest-row__slot", text: slotLabel(String(u.slot || "").toLowerCase()) }),
+  ]);
+
+  const track = typeof u.track === "string" && u.track ? u.track : "?";
+  const trackEl = h("span", {
+    className: "crest-row__track",
+    text: `${track} ${rank === null ? "?" : rank}/6 → 6/6`,
+  });
+
+  const levelsEl = h("span", {
+    className: "crest-row__levels mono",
+    text: `${level === null ? "?" : level} → ${maxLevel === null ? "?" : maxLevel}`,
+  });
+
+  const gain = numOrNull(u.gain_pct);
+  const kids = [meta, trackEl, levelsEl];
+  if (gain === null) {
+    kids.push(h("span", { className: "crest-row__no-estimate muted-note", text: "No estimate" }));
+  } else {
+    const pct = Math.max(2, Math.min(100, (gain / maxGain) * 100));
+    const track2 = h("div", { className: "bar-track" });
+    const fill = h("div", { className: "bar-fill bar-fill--gold" });
+    fill.style.width = `${pct}%`;
+    track2.appendChild(fill);
+    kids.push(track2);
+    kids.push(h("span", { className: "crest-row__pct mono", text: `+${gain.toFixed(2)}%` }));
+  }
+
+  return h("div", { className: "crest-row" }, kids);
 }
 
 function renderReportCard(report, key) {
@@ -723,7 +879,9 @@ async function loadLatest() {
     renderRunData(data);
   } catch (err) {
     clear(els.reportsContainer);
+    clear(els.crestContainer);
     clear(els.gearContainer);
+    renderMascot(false);
     els.reportsContainer.appendChild(errorCapsule(`Could not load the latest run: ${err.message}`));
   }
 }
@@ -732,7 +890,9 @@ async function selectRun(id) {
   const url = runDataUrl(id);
   if (!url) {
     clear(els.reportsContainer);
+    clear(els.crestContainer);
     clear(els.gearContainer);
+    renderMascot(false);
     els.reportsContainer.appendChild(errorCapsule(`"${id}" is not a valid run id.`));
     return;
   }
@@ -747,7 +907,9 @@ async function selectRun(id) {
     renderRunData(data);
   } catch (err) {
     clear(els.reportsContainer);
+    clear(els.crestContainer);
     clear(els.gearContainer);
+    renderMascot(false);
     els.reportsContainer.appendChild(errorCapsule(`Could not load run ${id}: ${err.message}`));
   }
 }
