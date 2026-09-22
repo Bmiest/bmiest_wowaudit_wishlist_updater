@@ -132,9 +132,26 @@ a:hover { text-decoration-color: var(--jade); }
 
 /* ---- header ------------------------------------------------------------ */
 .dash-header { display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; border-bottom: 1px solid var(--ink-700); }
+.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .status-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .updated-row { font-size: 13px; color: var(--ink-400); }
 .updated { cursor: default; }
+
+/* ---- peon mascot -------------------------------------------------------
+   Same capsule idiom as .capsule: thin border, --r-cap corners, own dark
+   ground. Only shown for the run currently on screen, so it sits next to
+   the status pill rather than inside it. */
+.mascot-slot[hidden] { display: none; }
+.mascot-frame {
+  width: 110px; aspect-ratio: 498 / 420;
+  border-radius: var(--r-cap); border: 1px solid var(--ink-600);
+  background: var(--ink-800); padding: 3px; box-sizing: border-box;
+  overflow: hidden;
+}
+.mascot__media {
+  width: 100%; height: 100%; display: block; object-fit: cover;
+  border-radius: calc(var(--r-cap) - 3px);
+}
 
 /* ---- global error / viewing banner -------------------------------------- */
 .error-capsule {
@@ -167,7 +184,8 @@ a:hover { text-decoration-color: var(--jade); }
   font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
   color: var(--ink-400); margin-bottom: 16px;
 }
-.reports-container, .gear-container, .history-container { display: flex; flex-direction: column; gap: 22px; }
+.reports-container, .crest-container, .gear-container, .history-container { display: flex; flex-direction: column; gap: 22px; }
+.crest-footnote { margin-top: 2px; font-size: 12px; color: var(--ink-500); }
 .char-heading { font-size: 18px; font-weight: 600; color: var(--paper); margin: 4px 0 -6px; }
 .muted-note { color: var(--ink-400); font-size: 14px; }
 
@@ -200,6 +218,29 @@ a:hover { text-decoration-color: var(--jade); }
 .bar-fill { height: 100%; background: var(--jade); border-radius: 5px; }
 .upgrade-bar__pct { font-size: 13px; color: var(--jade); text-align: right; min-width: 62px; }
 .bars-toggle { display: flex; justify-content: flex-start; }
+
+/* ---- crest planner ---------------------------------------------------------
+   Same bar idiom as the wishlist upgrades, but gold: crests are a different
+   currency from raw item upgrades, and the colour keeps the two apart at a
+   glance. */
+.crest-rows { display: flex; flex-direction: column; gap: 10px; }
+.crest-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, .9fr) minmax(0, .65fr) minmax(0, 1.6fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+.crest-row__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.crest-row__item {
+  font-size: 14px; font-weight: 600; color: var(--paper);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.crest-row__slot { font-size: 11px; color: var(--ink-400); }
+.crest-row__track { font-size: 13px; color: var(--paper-dim); white-space: nowrap; }
+.crest-row__levels { font-size: 13px; color: var(--paper-dim); white-space: nowrap; }
+.crest-row__pct { font-size: 13px; color: var(--gold); text-align: right; min-width: 62px; }
+.crest-row__no-estimate { grid-column: span 2; font-size: 13px; }
+.bar-fill--gold { background: var(--gold); }
 
 /* ---- gear grid ------------------------------------------------------------ */
 .gear-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
@@ -259,6 +300,9 @@ a:hover { text-decoration-color: var(--jade); }
   .rcard__in { padding: 30px 16px 20px; }
   .upgrade-bar { grid-template-columns: 1fr; row-gap: 6px; }
   .upgrade-bar__pct { text-align: left; }
+  .crest-row { grid-template-columns: 1fr; row-gap: 6px; }
+  .crest-row__pct { text-align: left; }
+  .crest-row__no-estimate { grid-column: auto; }
   .history-row__commit { margin-left: 0; }
   .gear-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
@@ -267,6 +311,7 @@ a:hover { text-decoration-color: var(--jade); }
   .page { padding: 22px 12px 64px; }
   .capsule__text { font-size: 12px; }
   .rib__val { font-size: 14px; }
+  .mascot-frame { width: 72px; }
 }
 
 /* ---- motion --------------------------------------------------------------- */

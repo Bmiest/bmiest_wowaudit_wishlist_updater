@@ -25,7 +25,10 @@
     </div>
 
     <div id="headerCapsules" class="capsule-row"></div>
-    <div id="headerStatus" class="status-row"></div>
+    <div class="status-line">
+      <div id="headerStatus" class="status-row"></div>
+      <div id="headerMascot" class="mascot-slot" hidden></div>
+    </div>
     <div id="headerUpdated" class="updated-row"></div>
   </header>
 
@@ -38,6 +41,12 @@
     <section class="view" aria-labelledby="reportsHeading">
       <h2 id="reportsHeading" class="view__title">Latest reports</h2>
       <div id="reportsContainer" class="reports-container"></div>
+    </section>
+
+    <section class="view" aria-labelledby="crestHeading">
+      <h2 id="crestHeading" class="view__title">Where to spend crests</h2>
+      <div id="crestContainer" class="crest-container"></div>
+      <p class="crest-footnote muted-note">QE's estimate of each item at max upgrade compared with how it's equipped now. Crest costs aren't shown.</p>
     </section>
 
     <section class="view" aria-labelledby="gearHeading">
