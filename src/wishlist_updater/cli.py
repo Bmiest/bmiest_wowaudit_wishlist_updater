@@ -54,6 +54,14 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SIMC_FILE",
         help="Print the wishlist.toml item_overrides block for an addon /simc export and exit.",
     )
+    p.add_argument(
+        "--wowaudit-login",
+        nargs="?",
+        const="browser",
+        choices=["browser", "cookie"],
+        help="One-time setup: save your WoWAudit login session for keyless imports "
+        "('cookie' pastes the _user_session cookie from your normal browser instead).",
+    )
     p.add_argument("--dry-run", action="store_true", help="Generate reports but skip WoWAudit.")
     p.add_argument("--headed", action="store_true", help="Show the browser (local debugging).")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -218,6 +226,17 @@ async def run(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.wowaudit_login:
+        from wishlist_updater import wowaudit_session as ws
+
+        if args.wowaudit_login == "cookie":
+            path = ws.capture_session_from_cookie()
+        else:
+            path = asyncio.run(ws.capture_session_interactively())
+        print(f"\nSaved to {path} (readable only by you). To use it in GitHub Actions:")
+        repo = "Bmiest/bmiest_wowaudit_wishlist_updater"
+        print(f"  gh secret set WOWAUDIT_SESSION -R {repo} < {path}")
+        return 0
     if args.extract_overrides:
         overrides = extract_overrides(args.extract_overrides.read_text())
         print("# Paste under the matching [[characters]] entry in wishlist.toml")

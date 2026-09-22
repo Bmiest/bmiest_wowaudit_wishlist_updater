@@ -6,6 +6,9 @@
 #   "blizzard" -- Blizzard Profile API, needs BLIZZARD_CLIENT_ID / BLIZZARD_CLIENT_SECRET
 simc_source = "raiderio"
 
+# Team page used for keyless imports with your own login session (WOWAUDIT_SESSION).
+wowaudit_team_url = "https://wowaudit.com/guild/eu/draenor/kelderklasse/teams/main"
+
 [qe]
 raid_difficulty = "Mythic"
 mplus_level = 10

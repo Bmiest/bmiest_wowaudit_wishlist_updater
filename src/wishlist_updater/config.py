@@ -74,6 +74,7 @@ class Config:
     characters: tuple[Character, ...]
     qe: dict[str, object]
     simc_source: str = "raiderio"
+    wowaudit_team_url: str | None = None
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -106,7 +107,16 @@ class Config:
 
         # QE settings are passed through to qe.QESettings(**qe) so the QE module
         # stays the single owner of which knobs exist.
-        return cls(characters=characters, qe=dict(raw.get("qe", {})), simc_source=simc_source)
+        team_url = raw.get("wowaudit_team_url")
+        if team_url is not None and not str(team_url).startswith("https://wowaudit.com/"):
+            raise ConfigError(f"{path}: wowaudit_team_url must be a https://wowaudit.com/ URL")
+
+        return cls(
+            characters=characters,
+            qe=dict(raw.get("qe", {})),
+            simc_source=simc_source,
+            wowaudit_team_url=team_url,
+        )
 
 
 def _parse_item_overrides(table: dict) -> dict[str, ItemOverride]:
