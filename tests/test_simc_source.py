@@ -326,3 +326,9 @@ async def test_live_raiderio_shiftheal():
     profile = await fetch_simc_from_raiderio(SHIFTHEAL)
     assert profile.class_token == "priest"
     assert "main_hand=,id=" in profile.text
+
+
+def test_raiderio_sample_fixture_is_current():
+    """tests/fixtures/simc/shiftheal_raiderio.simc is the QE-module test input; keep it in sync."""
+    expected = (Path(__file__).parent / "fixtures" / "simc" / "shiftheal_raiderio.simc").read_text()
+    assert _raiderio_profile().text == expected
