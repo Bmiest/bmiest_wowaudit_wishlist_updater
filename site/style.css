@@ -1,5 +1,5 @@
 /* =====================================================================
-   WoWAudit Wishlist Dashboard
+   WoWAudit Wishlist Dashboard -- "command center" layout
    Reuses the streaming overlay's visual language (tokens.css, ribbons,
    angled "rcard" panels, capsules, pills) but this is a normal page that
    scrolls, so tokens.css's body{overflow:hidden} (built for a fixed OBS
@@ -18,12 +18,12 @@ a:hover { text-decoration-color: var(--jade); }
 :focus-visible { outline: 2px solid var(--jade); outline-offset: 3px; }
 
 .page {
-  max-width: 1200px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 40px 24px 96px;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 32px;
 }
 
 /* ---- ribbon (page brand mark) ----------------------------------------
@@ -61,7 +61,11 @@ a:hover { text-decoration-color: var(--jade); }
   font-weight: 600;
   white-space: nowrap;
 }
-.brand-rib { margin-bottom: 4px; }
+/* .dash-header has no align-items:flex-start (unlike the overlay's .head),
+   so a flex column child stretches to the full row width by default --
+   without this the ribbon would span the whole page instead of hugging
+   its own content, the way it does on the overlay's page. */
+.brand-rib { margin-bottom: 26px; align-self: flex-start; }
 
 /* ---- angled "rcard" panel ---------------------------------------------
    Same idiom as the overlay: flat two-layer border, corner cut bottom
@@ -86,10 +90,11 @@ a:hover { text-decoration-color: var(--jade); }
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 
 /* ---- capsules (character identity) ------------------------------------ */
-.capsule-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.capsule-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .capsule {
   display: inline-flex; align-items: center; gap: 9px;
   background: var(--ink-800); border: 1px solid var(--ink-600);
@@ -129,13 +134,34 @@ a:hover { text-decoration-color: var(--jade); }
   transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
 .pill--filter:hover { color: var(--paper-dim); }
 .pill--filter.is-active { background: var(--jade-ghost); color: var(--jade); border-color: rgba(63, 217, 164, .4); }
+.pill--ilvl { background: var(--ink-700); color: var(--paper-dim); text-transform: none; letter-spacing: .02em; font-weight: 600; }
 
 /* ---- header ------------------------------------------------------------ */
-.dash-header { display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; border-bottom: 1px solid var(--ink-700); }
-.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+/* gap:0, like the overlay's .head -- each child's own margin sets the
+   rhythm below, matching the overlay's spacing instead of an even flex gap. */
+.dash-header { display: flex; flex-direction: column; gap: 0; padding-bottom: 24px; border-bottom: 1px solid var(--ink-700); }
+/* Verbatim from the overlay's .head h1 / .lead (css/index.css). */
+.dash-header h1 {
+  font-size: clamp(38px, 5.6vw, 60px);
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -.032em;
+  color: var(--paper);
+}
+.lead {
+  margin-top: 20px;
+  max-width: 64ch;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--paper-dim);
+}
+@media (max-width: 900px) {
+  .lead { font-size: 18px; }
+}
+.status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
 .status-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.updated-row { font-size: 13px; color: var(--ink-400); }
-.updated { cursor: default; }
+.updated { font-size: 13px; color: var(--ink-400); cursor: default; }
 
 /* ---- peon mascot -------------------------------------------------------
    Same capsule idiom as .capsule: thin border, --r-cap corners, own dark
@@ -143,7 +169,7 @@ a:hover { text-decoration-color: var(--jade); }
    the status pill rather than inside it. */
 .mascot-slot[hidden] { display: none; }
 .mascot-frame {
-  width: 110px; aspect-ratio: 498 / 420;
+  width: 90px; aspect-ratio: 498 / 420;
   border-radius: var(--r-cap); border: 1px solid var(--ink-600);
   background: var(--ink-800); padding: 3px; box-sizing: border-box;
   overflow: hidden;
@@ -179,15 +205,56 @@ a:hover { text-decoration-color: var(--jade); }
 .viewing-banner[hidden] { display: none; }
 
 /* ---- views / sections ---------------------------------------------------- */
-.views { display: flex; flex-direction: column; gap: 40px; }
 .view__title {
   font-size: 12px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
-  color: var(--ink-400); margin-bottom: 16px;
+  color: var(--ink-400); margin-bottom: 6px;
 }
-.reports-container, .crest-container, .gear-container, .history-container { display: flex; flex-direction: column; gap: 22px; }
-.crest-footnote { margin-top: 2px; font-size: 12px; color: var(--ink-500); }
-.char-heading { font-size: 18px; font-weight: 600; color: var(--paper); margin: 4px 0 -6px; }
+.section-caption { font-size: 13px; color: var(--ink-500); max-width: 62ch; margin-bottom: 16px; }
+.reports-container, .crest-container, .history-container { display: flex; flex-direction: column; gap: 16px; }
 .muted-note { color: var(--ink-400); font-size: 14px; }
+
+/* ---- stat tiles ---------------------------------------------------------- */
+.tiles-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.tile {
+  background: var(--ink-800); border: 1px solid var(--ink-600);
+  border-radius: var(--r-cap); padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.tile__label { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-400); }
+.tile__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tile__link {
+  font-size: 15px; font-weight: 600; color: var(--paper);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tile__big { font-size: 28px; font-weight: 600; color: var(--paper); line-height: 1.05; }
+.tile__muted { font-size: 13px; color: var(--ink-400); }
+.tile__slot { font-size: 11px; color: var(--ink-400); }
+.tile__crest-line { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; }
+.tile__detail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tile__pct { font-size: 13px; color: var(--jade); font-weight: 600; }
+.tile__pct--gold { color: var(--gold); }
+.tile__rank { font-size: 12px; color: var(--paper-dim); }
+
+/* ---- per-difficulty check marks (H / M), used in the LAST RUN tile and
+   the compact history rows. */
+.diff-checks { display: inline-flex; gap: 8px; }
+.diff-checks--sm { gap: 6px; }
+.diff-check { font-family: var(--f-mono); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+.diff-check--ok { color: var(--jade); }
+.diff-check--fail { color: var(--rose); }
+.diff-check--muted { color: var(--ink-500); }
+
+/* ---- command grid: reports (main) + crests/history (sidebar) ------------- */
+.command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-areas: "reports crests" "reports history";
+  gap: 24px;
+  align-items: start;
+}
+.grid-reports { grid-area: reports; }
+.grid-crests { grid-area: crests; }
+.grid-history { grid-area: history; }
 
 /* ---- report card content ------------------------------------------------- */
 .report-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
@@ -197,121 +264,181 @@ a:hover { text-decoration-color: var(--jade); }
   background: rgba(217, 139, 139, .08); border-left: 2px solid var(--rose);
   padding: 8px 12px; overflow-wrap: anywhere;
 }
-.warning-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.warning-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+
+/* ---- tabs ------------------------------------------------------------------ */
+.tablist { display: flex; gap: 8px; margin-bottom: 4px; }
+.tab {
+  cursor: pointer; background: var(--ink-750); color: var(--ink-300);
+  border: 1px solid var(--ink-700); border-radius: var(--r-pill);
+  padding: 6px 18px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  font-family: var(--f-display);
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.tab:hover { color: var(--paper-dim); }
+.tab.is-selected { background: var(--jade-ghost); color: var(--jade); border-color: rgba(63, 217, 164, .4); }
+.tabpanel { display: flex; flex-direction: column; gap: 16px; }
+.tabpanel[hidden] { display: none; }
+.report-panel { display: flex; flex-direction: column; gap: 16px; }
 
 .filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
 
-.bars { display: flex; flex-direction: column; gap: 10px; }
-.upgrade-bar {
+.upgrade-rows { display: flex; flex-direction: column; gap: 10px; }
+.upgrade-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto;
+  grid-template-columns: minmax(0, 1.3fr) auto minmax(0, .9fr) minmax(0, 1.3fr) auto;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
-.upgrade-bar__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.upgrade-bar__item {
+.upgrade-row__item {
   font-size: 14px; font-weight: 600; color: var(--paper);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.upgrade-bar__source { font-size: 11px; color: var(--ink-400); }
-.bar-track { height: 10px; border-radius: 5px; background: var(--ink-700); overflow: hidden; min-width: 60px; }
+.upgrade-row__source { font-size: 11px; color: var(--ink-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { height: 10px; border-radius: 5px; background: var(--ink-700); overflow: hidden; min-width: 50px; }
 .bar-fill { height: 100%; background: var(--jade); border-radius: 5px; }
-.upgrade-bar__pct { font-size: 13px; color: var(--jade); text-align: right; min-width: 62px; }
+.bar-fill--gold { background: var(--gold); }
+.upgrade-row__pct { font-size: 13px; color: var(--jade); text-align: right; min-width: 58px; }
 .bars-toggle { display: flex; justify-content: flex-start; }
 
-/* ---- crest planner ---------------------------------------------------------
-   Same bar idiom as the wishlist upgrades, but gold: crests are a different
-   currency from raw item upgrades, and the colour keeps the two apart at a
-   glance. */
-.crest-rows { display: flex; flex-direction: column; gap: 10px; }
-.crest-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, .9fr) minmax(0, .65fr) minmax(0, 1.6fr) auto;
-  align-items: center;
-  gap: 14px;
+/* ---- crest sidebar (compact rows) ------------------------------------------ */
+.crest-compact-list { display: flex; flex-direction: column; }
+.crest-compact-row {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 10px 0; border-bottom: 1px solid var(--ink-750);
 }
-.crest-row__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.crest-row__item {
+.crest-compact-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.crest-compact-row:first-child { padding-top: 0; }
+.crest-compact-row__item {
   font-size: 14px; font-weight: 600; color: var(--paper);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.crest-row__slot { font-size: 11px; color: var(--ink-400); }
-.crest-row__track { font-size: 13px; color: var(--paper-dim); white-space: nowrap; }
-.crest-row__levels { font-size: 13px; color: var(--paper-dim); white-space: nowrap; }
-.crest-row__pct { font-size: 13px; color: var(--gold); text-align: right; min-width: 62px; }
-.crest-row__no-estimate { grid-column: span 2; font-size: 13px; }
-.bar-fill--gold { background: var(--gold); }
+.crest-compact-row__meta { font-size: 11.5px; color: var(--ink-400); }
+.crest-compact-row__bar-row { display: flex; align-items: center; gap: 10px; }
+.crest-compact-row__bar-row .bar-track { flex: 1; }
+.crest-row__pct { font-size: 12px; color: var(--gold); white-space: nowrap; }
 
-/* ---- gear grid ------------------------------------------------------------ */
-.gear-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-.gear-slot {
-  display: flex; flex-direction: column; gap: 4px;
-  background: var(--ink-750); border: 1px solid var(--ink-700); border-radius: 8px;
-  padding: 10px 14px;
-  min-width: 0;
-}
-.gear-slot__label { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-400); }
-.gear-slot__item { font-size: 14px; font-weight: 600; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gear-slot__ilvl { font-size: 12px; color: var(--paper-dim); }
-
-/* ---- run history ----------------------------------------------------------- */
-.history-container { position: relative; padding-left: 16px; border-left: 1px solid var(--ink-700); }
+/* ---- run history: compact list -------------------------------------------- */
 .history-row {
-  position: relative;
-  background: var(--ink-800); border: 1px solid var(--ink-700); border-radius: 10px;
-  padding: 14px 18px; margin-left: 4px;
-  display: flex; flex-direction: column; gap: 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px 4px; border-bottom: 1px solid var(--ink-750);
   cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  transition: background var(--t-fast) var(--ease);
 }
-.history-row::before {
-  content: ''; position: absolute; left: -21px; top: 20px;
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--ink-500); border: 2px solid var(--ink-900);
+.history-row:last-child { border-bottom: 0; }
+.history-row:hover { background: var(--ink-800); }
+.history-row.is-selected { background: var(--ink-750); }
+.history-row__dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--ink-500); flex: 0 0 8px;
 }
-.history-row:hover { border-color: var(--ink-500); }
-.history-row.is-selected { border-color: var(--jade); background: var(--ink-750); }
-.history-row.is-selected::before { background: var(--jade); }
-.history-row__top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.history-row__time { font-size: 13px; color: var(--paper-dim); }
-.history-row__commit { font-size: 12px; color: var(--ink-400); margin-left: auto; }
-.history-row__chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 600; padding: 4px 10px;
-  border-radius: var(--r-pill);
-  background: var(--ink-700); color: var(--ink-200);
-  border: 1px solid var(--ink-600);
-}
-.chip--name { background: transparent; color: var(--ink-400); border-style: dashed; }
-.chip--imported { background: var(--jade-ghost); color: var(--jade); border-color: rgba(63, 217, 164, .35); }
-.chip--error { background: rgba(217, 139, 139, .15); color: var(--rose); border-color: rgba(217, 139, 139, .38); }
-.history-row__foot { display: flex; justify-content: flex-end; }
-.history-row__gh { font-size: 12px; color: var(--ink-400); }
+.history-row.is-selected .history-row__dot { background: var(--jade); }
+.history-row__time { font-size: 12px; color: var(--paper-dim); white-space: nowrap; }
+.history-row__trigger { font-size: 11px; color: var(--ink-400); white-space: nowrap; }
+.history-row__gh { font-size: 11px; color: var(--ink-400); margin-left: auto; white-space: nowrap; }
 .history-row__gh:hover { color: var(--jade); }
+.history-showmore { margin-top: 12px; }
 
-.dash-footer { text-align: center; font-size: 12px; color: var(--ink-500); padding-top: 8px; }
+/* ---- gear paper doll -------------------------------------------------------- */
+.paperdoll {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px minmax(0, 1fr);
+  grid-template-areas: "left id right" "left weapons right";
+  gap: 24px;
+  align-items: start;
+}
+.pd-col { display: flex; flex-direction: column; gap: 10px; }
+.pd-col--left { grid-area: left; }
+.pd-col--right { grid-area: right; }
+.pd-id {
+  grid-area: id;
+  background: var(--ink-800); border: 1px solid var(--ink-600); border-radius: var(--r-cap);
+  padding: 20px; text-align: center;
+  display: flex; flex-direction: column; gap: 4px; align-items: center;
+}
+.pd-id__name { font-size: 19px; font-weight: 600; color: var(--paper); }
+.pd-id__spec { font-size: 13px; color: var(--paper-dim); }
+.pd-id__ilvl { margin-top: 8px; font-size: 13px; color: var(--ink-300); }
+.pd-id__ilvl-note { color: var(--ink-500); }
+.pd-weapons { grid-area: weapons; display: flex; flex-direction: column; gap: 10px; }
+
+.pd-slot {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--ink-750); border: 1px solid var(--ink-700); border-radius: 8px;
+  padding: 10px 14px; min-width: 0;
+}
+.pd-slot--dim { opacity: .58; }
+.pd-slot--empty { color: var(--ink-500); }
+.pd-slot__label {
+  flex: 0 0 78px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-400);
+}
+.pd-slot__main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.pd-slot__item {
+  font-size: 13.5px; font-weight: 600; color: var(--paper);
+  white-space: normal; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0;
+}
+
+/* ---- footer / "how this works" --------------------------------------------- */
+.dash-footer { display: flex; flex-direction: column; gap: 16px; align-items: center; padding-top: 8px; }
+.how-it-works {
+  width: 100%; max-width: 640px;
+  background: var(--ink-800); border: 1px solid var(--ink-700); border-radius: 10px;
+  padding: 4px 18px;
+}
+.how-it-works summary {
+  cursor: pointer; padding: 12px 0; font-size: 14px; font-weight: 600; color: var(--paper-dim);
+  list-style: none;
+}
+.how-it-works summary::-webkit-details-marker { display: none; }
+.how-it-works summary::before { content: '\25B8'; display: inline-block; margin-right: 8px; color: var(--jade); transition: transform var(--t-fast) var(--ease); }
+.how-it-works[open] summary::before { transform: rotate(90deg); }
+.how-it-works__list { margin: 0 0 16px; padding-left: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.55; color: var(--ink-300); }
+.footer-link { font-size: 13px; color: var(--ink-400); }
+.footer-link:hover { color: var(--jade); }
 
 .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
 
+/* ---- responsive: command-center reflow at ~1100px, single column below --- */
+@media (max-width: 1100px) {
+  .tiles-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .command-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "crests" "reports" "history";
+  }
+  .paperdoll {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "id id" "left right" "weapons weapons";
+  }
+  /* The 78px side-by-side label eats too much of an already-halved column;
+     stack the label above the item instead so the name gets the width. */
+  .pd-slot { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .pd-slot__label { flex: 0 0 auto; }
+  .pd-slot__main { width: 100%; }
+}
+
 /* ---- responsive: down to 360px -------------------------------------------- */
 @media (max-width: 720px) {
-  .page { padding: 28px 16px 72px; gap: 32px; }
+  .page { padding: 28px 16px 72px; gap: 24px; }
   .rcard__in { padding: 30px 16px 20px; }
-  .upgrade-bar { grid-template-columns: 1fr; row-gap: 6px; }
-  .upgrade-bar__pct { text-align: left; }
-  .crest-row { grid-template-columns: 1fr; row-gap: 6px; }
-  .crest-row__pct { text-align: left; }
-  .crest-row__no-estimate { grid-column: auto; }
-  .history-row__commit { margin-left: 0; }
-  .gear-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  /* name + ilvl on one line, source under it, bar + % on the last line */
+  .upgrade-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "item ilvl" "source source" "bar pct";
+    row-gap: 6px; column-gap: 10px;
+  }
+  .upgrade-row > .upgrade-row__item { grid-area: item; }
+  .upgrade-row > .pill--ilvl { grid-area: ilvl; justify-self: end; }
+  .upgrade-row > .upgrade-row__source { grid-area: source; }
+  .upgrade-row > .bar-track { grid-area: bar; }
+  .upgrade-row > .upgrade-row__pct { grid-area: pct; text-align: right; }
+  .history-row { padding: 10px 2px; }
 }
 
 @media (max-width: 400px) {
   .page { padding: 22px 12px 64px; }
   .capsule__text { font-size: 12px; }
   .rib__val { font-size: 14px; }
-  .mascot-frame { width: 72px; }
+  .mascot-frame { width: 68px; }
+  .tile__big { font-size: 22px; }
 }
 
 /* ---- motion --------------------------------------------------------------- */

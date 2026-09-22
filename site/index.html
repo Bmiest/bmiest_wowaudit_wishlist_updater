@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://wow.zamimg.com; style-src 'self' https://fonts.googleapis.com https://wow.zamimg.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' https://wow.zamimg.com data:; connect-src 'self' https://nether.wowhead.com; base-uri 'none'; form-action 'none';">
-<title>WoWAudit wishlist dashboard</title>
+<title>Wishlist automation for WoWAudit</title>
 <meta name="description" content="Run history, QE Live upgrade reports and equipped gear from the WoWAudit wishlist automation.">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="style.css">
@@ -17,52 +17,76 @@
     <div class="rib rib--sm brand-rib" style="--acc:var(--jade)">
       <div class="rib__bar"><div class="rib__in">
         <span class="rib__acc"><svg viewBox="0 0 18 18" aria-hidden="true">
-          <path d="M9 2l1.8 4.4L15.5 7l-3.6 3.1 1.1 4.7L9 12.4l-4 2.4 1.1-4.7L2.5 7l4.7-.6z"
-                fill="currentColor"></path>
+          <circle cx="9" cy="9" r="3" fill="currentColor"></circle>
+          <path d="M4.2 4.2a6.8 6.8 0 0 0 0 9.6M13.8 4.2a6.8 6.8 0 0 1 0 9.6"
+                fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
         </svg></span>
-        <span class="rib__val">Wishlist dashboard</span>
+        <span class="rib__val">bmiest</span>
       </div></div>
     </div>
+
+    <!-- This h1's textContent is the single source of truth for the page
+         title: app.js copies it into document.title at init, and the
+         static <title> above holds the same text as the no-JS fallback. -->
+    <h1 id="pageTitle">Wishlist automation for WoWAudit</h1>
+    <p class="lead">QE Live upgrade reports for Shiftheal, generated every day at 06:00 UTC and imported into the Kelderklasse WoWAudit wishlist.</p>
 
     <div id="headerCapsules" class="capsule-row"></div>
     <div class="status-line">
       <div id="headerStatus" class="status-row"></div>
       <div id="headerMascot" class="mascot-slot" hidden></div>
+      <span id="headerUpdated" class="updated"></span>
     </div>
-    <div id="headerUpdated" class="updated-row"></div>
   </header>
 
   <div id="globalError" class="global-error" hidden></div>
 
   <div id="viewingBanner" class="viewing-banner" hidden></div>
 
-  <main class="views">
+  <section class="view tiles-view" aria-label="Key stats">
+    <div id="tilesContainer" class="tiles-grid"></div>
+  </section>
 
-    <section class="view" aria-labelledby="reportsHeading">
+  <div class="command-grid">
+
+    <section id="reportsSection" class="view grid-reports" aria-labelledby="reportsHeading">
       <h2 id="reportsHeading" class="view__title">Latest reports</h2>
+      <p class="section-caption">The % is QE's estimate of how much more you'd heal if this item replaced the one you wear now. Your equipped gear counts at max upgrade, and no sockets are added.</p>
       <div id="reportsContainer" class="reports-container"></div>
     </section>
 
-    <section class="view" aria-labelledby="crestHeading">
+    <section id="crestSection" class="view grid-crests" aria-labelledby="crestHeading">
       <h2 id="crestHeading" class="view__title">Where to spend crests</h2>
+      <p class="section-caption">QE's estimate of each item at max upgrade compared with how it's equipped now. Crest costs aren't shown.</p>
       <div id="crestContainer" class="crest-container"></div>
-      <p class="crest-footnote muted-note">QE's estimate of each item at max upgrade compared with how it's equipped now. Crest costs aren't shown.</p>
     </section>
 
-    <section class="view" aria-labelledby="gearHeading">
-      <h2 id="gearHeading" class="view__title">Gear</h2>
-      <div id="gearContainer" class="gear-container"></div>
-    </section>
-
-    <section class="view" aria-labelledby="historyHeading">
+    <section id="historySection" class="view grid-history" aria-labelledby="historyHeading">
       <h2 id="historyHeading" class="view__title">Run history</h2>
+      <p class="section-caption">Every automated run. Click one to see its reports.</p>
       <div id="historyContainer" class="history-container"></div>
+      <div id="historyShowMoreWrap" class="history-showmore"></div>
     </section>
 
-  </main>
+  </div>
+
+  <section class="view" aria-labelledby="gearHeading">
+    <h2 id="gearHeading" class="view__title">Gear</h2>
+    <p class="section-caption">Equipped gear as of this run, from Raider.io.</p>
+    <div id="gearContainer" class="paperdoll-container"></div>
+  </section>
 
   <footer class="dash-footer">
-    <span>Updated after every automation run.</span>
+    <details class="how-it-works">
+      <summary>How this works</summary>
+      <ol class="how-it-works__list">
+        <li>Gear comes from Raider.io, plus the catalyst and crafted stats it can't see, which are stored in the repo. Manual runs can use a pasted /simc export instead.</li>
+        <li>QE Live's Upgrade Finder runs in a headless browser, first for Heroic and then for Mythic. No sockets are added, and your equipped gear counts at max upgrade.</li>
+        <li>Both reports are imported into the Kelderklasse WoWAudit wishlist.</li>
+        <li>This page is republished after every run.</li>
+      </ol>
+    </details>
+    <a class="footer-link" href="https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
   </footer>
 
 </div>

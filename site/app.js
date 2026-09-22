@@ -1,4 +1,4 @@
-// WoWAudit wishlist updater -- public run dashboard.
+// WoWAudit wishlist updater -- public run dashboard ("command center" layout).
 //
 // Vanilla JS, no build step. Everything is rendered with
 // document.createElement()/textContent -- never innerHTML -- because the
@@ -6,6 +6,13 @@
 // that relays error strings from external services (WoWAudit, QE Live).
 // Those strings are untrusted and must always end up as literal text, never
 // as markup.
+//
+// The layout (tiles, reports/crests/history grid, gear paper doll) is built
+// around a single primary character -- everything in the design brief is
+// phrased in the singular ("the top deduped result", "the equipped slots"),
+// and the real data only ever has one. Reports/crests still tolerate a
+// second character defensively (no crash), but the tiles and paper doll use
+// characters[0].
 
 // ---------------------------------------------------------------------
 // Config: things older data does not tell us.
@@ -52,10 +59,6 @@ function h(tag, opts, kids) {
 
 function clear(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
-}
-
-function text(str) {
-  return document.createTextNode(str);
 }
 
 // ---------------------------------------------------------------------
@@ -223,6 +226,12 @@ function sourceLabel(dropLoc, dropDifficulty) {
 }
 
 const DROP_LOC_FILTERS = ["All", "Raid", "Dungeon", "Delves", "Crafted"];
+const REPORT_DIFFICULTIES = ["Heroic", "Mythic"];
+
+function numOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
 
 // ---------------------------------------------------------------------
 // Upgrade computation: percDiff > 0, deduped per item, preferring the
@@ -245,6 +254,66 @@ function computeUpgrades(results) {
   return Array.from(byItem.values()).sort((a, b) => b.percDiff - a.percDiff);
 }
 
+/** The 16 gear slots that make up "average item level" -- shirt and tabard
+ * are cosmetic and don't count. */
+const ILVL_SLOTS = [
+  "head", "neck", "shoulder", "back", "chest", "wrist", "hands", "waist",
+  "legs", "feet", "finger1", "finger2", "trinket1", "trinket2", "main_hand", "off_hand",
+];
+
+function computeAvgIlvl(gear) {
+  const bySlot = new Map((Array.isArray(gear) ? gear : []).map((g) => [g.slot, g]));
+  const values = [];
+  for (const slot of ILVL_SLOTS) {
+    const g = bySlot.get(slot);
+    const lvl = g ? numOrNull(g.ilvl) : null;
+    if (lvl !== null) values.push(lvl);
+  }
+  if (values.length === 0) return { avg: null, count: 0, total: ILVL_SLOTS.length };
+  const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  return { avg, count: values.length, total: ILVL_SLOTS.length };
+}
+
+/** Per-difficulty check marks ("H ✓  M ✓"), shared by the LAST RUN tile and
+ * the compact history rows. Only difficulties actually present are shown. */
+function difficultyChecks(reports) {
+  const byDiff = new Map((Array.isArray(reports) ? reports : []).map((r) => [r.difficulty, r]));
+  const out = [];
+  for (const diff of REPORT_DIFFICULTIES) {
+    const r = byDiff.get(diff);
+    if (!r) continue;
+    const letter = diff.charAt(0);
+    let state = "muted";
+    let symbol = "–"; // – not imported / report-only
+    let title = `${diff}: not imported`;
+    if (r.error) {
+      state = "fail";
+      symbol = "✗"; // ✗
+      title = `${diff}: error`;
+    } else if (r.uploaded_via) {
+      state = "ok";
+      symbol = "✓"; // ✓
+      title = `${diff}: imported`;
+    }
+    out.push({ letter, symbol, state, title, url: isReportUrl(r.report_url) });
+  }
+  return out;
+}
+
+function difficultyChecksRow(reports, className) {
+  const row = h("span", { className: className || "diff-checks" });
+  difficultyChecks(reports).forEach((d) => {
+    row.appendChild(
+      h("span", {
+        className: `diff-check diff-check--${d.state}`,
+        text: `${d.letter} ${d.symbol}`,
+        attrs: { title: d.title },
+      })
+    );
+  });
+  return row;
+}
+
 // ---------------------------------------------------------------------
 // Wowhead tooltips: config must exist before the script loads, and we
 // inject the script ourselves so there is no inline <script> in the HTML.
@@ -264,16 +333,56 @@ function refreshWowheadLinks() {
   }
 }
 
-// Item names Wowhead has already filled in, keyed by item id. Upgrade rows start out as
-// "Item <id>", so re-rendered rows reuse a known name instead of flashing the placeholder.
-const wowheadNames = new Map();
-const PLACEHOLDER_NAME = /^Item \d+$/;
+// ---------------------------------------------------------------------
+// Wowhead name cache. renameLinks:true rewrites a link's text once its
+// tooltip data arrives, asynchronously. Every re-render (a filter chip, a
+// tab switch, "show all") rebuilds those links from scratch as plain
+// "Item <id>" placeholders, which would otherwise revert an already-known
+// name back to the placeholder until Wowhead answers again -- a visible
+// flash on every interaction. A MutationObserver watches for Wowhead's own
+// text edits and remembers them, so a rebuilt link can use the real name
+// immediately instead of the placeholder.
+// ---------------------------------------------------------------------
+const wowheadNameCache = new Map();
+const WOWHEAD_ITEM_ID_RE = /item=(\d+)/;
+const PLACEHOLDER_NAME_RE = /^Item \d+$/;
 
-function rememberWowheadNames(container) {
-  container.querySelectorAll("a[data-item-id]").forEach((link) => {
-    const name = link.textContent.trim();
-    if (name && !PLACEHOLDER_NAME.test(name)) wowheadNames.set(link.dataset.itemId, name);
+/** The label to use for an item link: the data-provided name if there is
+ * one, else a name Wowhead already resolved for this item id, else the
+ * "Item <id>" placeholder Wowhead's renameLinks will replace. */
+function cachedItemLabel(itemId, providedName) {
+  if (typeof providedName === "string" && providedName) return providedName;
+  const id = Number(itemId);
+  if (Number.isInteger(id) && wowheadNameCache.has(id)) return wowheadNameCache.get(id);
+  return Number.isInteger(id) ? `Item ${id}` : "Unknown item";
+}
+
+function recordWowheadLinkName(link) {
+  if (!link || link.tagName !== "A") return;
+  const href = link.getAttribute("href") || "";
+  const m = WOWHEAD_ITEM_ID_RE.exec(href);
+  if (!m) return;
+  const txt = (link.textContent || "").trim();
+  if (!txt || PLACEHOLDER_NAME_RE.test(txt) || txt === "Unknown item") return;
+  wowheadNameCache.set(Number(m[1]), txt);
+}
+
+let wowheadObserver = null;
+function observeWowheadNames() {
+  if (wowheadObserver || typeof MutationObserver === "undefined") return;
+  wowheadObserver = new MutationObserver((records) => {
+    records.forEach((rec) => {
+      let node = rec.target;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      if (!node) return;
+      if (node.tagName === "A") {
+        recordWowheadLinkName(node);
+      } else if (typeof node.querySelectorAll === "function") {
+        node.querySelectorAll('a[href*="wowhead.com/item="]').forEach(recordWowheadLinkName);
+      }
+    });
   });
+  wowheadObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
 }
 
 // ---------------------------------------------------------------------
@@ -317,8 +426,9 @@ function errorCapsule(message) {
 const state = {
   index: null,
   activeRunId: null,
-  // per "charIdx:difficulty" UI state for the reports view
-  reportUi: new Map(),
+  reportUi: new Map(), // "charIdx:difficulty" -> { loc, expanded }
+  reportsTab: "Mythic", // shared tab selection for the single reports card
+  historyExpanded: false,
 };
 
 function reportUiFor(key) {
@@ -336,13 +446,15 @@ function collectEls() {
     headerCapsules: document.getElementById("headerCapsules"),
     headerStatus: document.getElementById("headerStatus"),
     headerUpdated: document.getElementById("headerUpdated"),
-    globalError: document.getElementById("globalError"),
     headerMascot: document.getElementById("headerMascot"),
+    globalError: document.getElementById("globalError"),
     viewingBanner: document.getElementById("viewingBanner"),
+    tilesContainer: document.getElementById("tilesContainer"),
     reportsContainer: document.getElementById("reportsContainer"),
     crestContainer: document.getElementById("crestContainer"),
     gearContainer: document.getElementById("gearContainer"),
     historyContainer: document.getElementById("historyContainer"),
+    historyShowMoreWrap: document.getElementById("historyShowMoreWrap"),
   };
 }
 
@@ -352,12 +464,12 @@ function collectEls() {
 function renderHeader(indexData) {
   clear(els.headerCapsules);
   clear(els.headerStatus);
-  clear(els.headerUpdated);
 
   const runs = Array.isArray(indexData.runs) ? indexData.runs : [];
   const latest = runs[0];
   if (!latest) {
     els.headerStatus.appendChild(h("span", { className: "pill pill--muted", text: "No runs yet" }));
+    els.headerUpdated.textContent = "";
     return;
   }
 
@@ -380,12 +492,8 @@ function renderHeader(indexData) {
   }
 
   const when = latest.finished_at || latest.started_at;
-  const updated = h("span", {
-    className: "updated",
-    text: `updated ${relativeTime(when)}`,
-    attrs: { title: absoluteTime(when) },
-  });
-  els.headerUpdated.appendChild(updated);
+  els.headerUpdated.textContent = `updated ${relativeTime(when)}`;
+  els.headerUpdated.setAttribute("title", absoluteTime(when));
 }
 
 function characterCapsule(character) {
@@ -400,18 +508,38 @@ function characterCapsule(character) {
 }
 
 // ---------------------------------------------------------------------
-// Run history (view 4).
+// Run history: compact list, ~8 visible + "show more". Still the source
+// for #run= deep links and click-to-select.
 // ---------------------------------------------------------------------
+const HISTORY_VISIBLE = 8;
+
 function renderHistory(indexData) {
   clear(els.historyContainer);
+  clear(els.historyShowMoreWrap);
   const runs = Array.isArray(indexData.runs) ? indexData.runs : [];
   if (runs.length === 0) {
     els.historyContainer.appendChild(h("p", { className: "muted-note", text: "No runs recorded yet." }));
     return;
   }
-  runs.forEach((run) => {
+
+  const shown = state.historyExpanded ? runs : runs.slice(0, HISTORY_VISIBLE);
+  shown.forEach((run) => {
     els.historyContainer.appendChild(historyRow(run));
   });
+
+  if (runs.length > HISTORY_VISIBLE) {
+    const btn = h("button", {
+      className: "pill pill--action",
+      text: state.historyExpanded ? "Show fewer" : `Show all ${runs.length}`,
+      attrs: { type: "button" },
+    });
+    btn.addEventListener("click", () => {
+      state.historyExpanded = !state.historyExpanded;
+      renderHistory(indexData);
+    });
+    els.historyShowMoreWrap.appendChild(btn);
+  }
+
   updateHistorySelectionUI();
 }
 
@@ -428,49 +556,29 @@ function historyRow(run) {
     }
   });
 
-  const top = h("div", { className: "history-row__top" }, [
+  row.appendChild(h("span", { className: "history-row__dot", attrs: { "aria-hidden": "true" } }));
+  row.appendChild(
     h("span", {
       className: "history-row__time mono",
       text: relativeTime(run.started_at),
       attrs: { title: absoluteTime(run.started_at) },
-    }),
-    h("span", { className: "pill pill--muted pill--sm", text: triggerLabel(run.trigger) }),
-    h("span", {
-      className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`,
-      text: run.ok ? "OK" : "Failed",
-    }),
-    run.commit ? h("span", { className: "history-row__commit mono", text: run.commit }) : null,
-  ]);
-  row.appendChild(top);
+    })
+  );
+  row.appendChild(h("span", { className: "history-row__trigger", text: triggerLabel(run.trigger) }));
+  row.appendChild(
+    h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? "OK" : "Failed" })
+  );
 
-  const chips = h("div", { className: "history-row__chips" });
   const chars = Array.isArray(run.characters) ? run.characters : [];
-  chars.forEach((c) => {
-    if (chars.length > 1) {
-      chips.appendChild(h("span", { className: "chip chip--name", text: c.name || "?" }));
-    }
-    (c.reports || []).forEach((r) => {
-      chips.appendChild(reportChip(r));
-    });
-  });
-  row.appendChild(chips);
+  const allReports = chars.flatMap((c) => (Array.isArray(c.reports) ? c.reports : []));
+  row.appendChild(difficultyChecksRow(allReports, "diff-checks diff-checks--sm"));
 
   const ghUrl = isGithubUrl(run.url);
-  const footLink = linkOrText(ghUrl, "GitHub run ↗", { className: "history-row__gh" });
+  const footLink = linkOrText(ghUrl, "GitHub ↗", { className: "history-row__gh" });
   footLink.addEventListener("click", (e) => e.stopPropagation());
-  const foot = h("div", { className: "history-row__foot" }, [footLink]);
-  row.appendChild(foot);
+  row.appendChild(footLink);
 
   return row;
-}
-
-function reportChip(report) {
-  const url = isReportUrl(report.report_url);
-  const chip = linkOrText(url, report.difficulty || "Report", { className: "chip chip--report" });
-  if (url) chip.addEventListener("click", (e) => e.stopPropagation());
-  if (report.error) chip.classList.add("chip--error");
-  else if (report.uploaded_via) chip.classList.add("chip--imported");
-  return chip;
 }
 
 function updateHistorySelectionUI() {
@@ -496,9 +604,7 @@ function renderViewingBanner(runId, isLatest) {
     return;
   }
   els.viewingBanner.hidden = false;
-  els.viewingBanner.appendChild(
-    h("span", { text: "Viewing run " }, [])
-  );
+  els.viewingBanner.appendChild(h("span", { text: "Viewing run " }));
   els.viewingBanner.appendChild(h("b", { className: "mono", text: runId }));
   const backBtn = h("button", {
     className: "pill pill--action",
@@ -559,175 +665,201 @@ function renderMascot(runOk) {
 }
 
 // ---------------------------------------------------------------------
-// Reports (view 2) + Gear (view 3), built from a full run summary.
+// Stat tiles -- follow the displayed run, built from characters[0].
 // ---------------------------------------------------------------------
-function renderRunData(fullData) {
-  clear(els.reportsContainer);
-  clear(els.crestContainer);
-  clear(els.gearContainer);
-  renderMascot(Boolean(fullData.run && fullData.run.ok === true));
+function tile(label, kids) {
+  return h("div", { className: "tile" }, [
+    h("span", { className: "tile__label", text: label }),
+    h("div", { className: "tile__body" }, kids),
+  ]);
+}
 
-  const characters = Array.isArray(fullData.characters) ? fullData.characters : [];
-  if (characters.length === 0) {
-    els.reportsContainer.appendChild(errorCapsule("This run has no character data."));
+function renderTiles(fullData) {
+  clear(els.tilesContainer);
+  const character = (fullData.characters || [])[0];
+  if (!character) {
+    els.tilesContainer.appendChild(
+      h("p", { className: "muted-note", text: "No character data for this run." })
+    );
     return;
   }
 
-  const showCharHeading = characters.length > 1;
-
-  characters.forEach((character, idx) => {
-    if (showCharHeading) {
-      els.reportsContainer.appendChild(
-        h("h3", { className: "char-heading", text: character.name || `Character ${idx + 1}` })
-      );
-      els.crestContainer.appendChild(
-        h("h3", { className: "char-heading", text: character.name || `Character ${idx + 1}` })
-      );
-      els.gearContainer.appendChild(
-        h("h3", { className: "char-heading", text: character.name || `Character ${idx + 1}` })
-      );
-    }
-
-    if (character.error) {
-      els.reportsContainer.appendChild(errorCapsule(character.error));
-    }
-    if (character.skipped) {
-      const label =
-        typeof character.skipped === "string" ? `Skipped: ${character.skipped}` : "Skipped";
-      els.reportsContainer.appendChild(h("span", { className: "pill pill--muted", text: label }));
-    }
-    if (Array.isArray(character.warnings) && character.warnings.length > 0) {
-      const warnRow = h("div", { className: "warning-row" });
-      character.warnings.forEach((w) => {
-        warnRow.appendChild(h("span", { className: "pill pill--warn", text: String(w) }));
-      });
-      els.reportsContainer.appendChild(warnRow);
-    }
-
-    const reports = Array.isArray(character.reports) ? character.reports : [];
-    if (reports.length === 0) {
-      els.reportsContainer.appendChild(
-        h("p", { className: "muted-note", text: "No reports for this character in this run." })
-      );
-    }
-    reports.forEach((report) => {
-      const key = `${idx}:${report.difficulty}`;
-      els.reportsContainer.appendChild(renderReportCard(report, key));
-    });
-
-    els.crestContainer.appendChild(renderCrestPanel(character));
-    els.gearContainer.appendChild(renderGearGrid(character));
-  });
-
-  refreshWowheadLinks();
+  els.tilesContainer.appendChild(tileBestMythic(character));
+  els.tilesContainer.appendChild(tileNextCrest(character));
+  els.tilesContainer.appendChild(tileAvgIlvl(character));
+  els.tilesContainer.appendChild(tileLastRun(fullData.run, character));
 }
 
-// ---------------------------------------------------------------------
-// Crest planner (view: "Where to spend crests"), built from a full run
-// summary's crest_report/crest_upgrades. Both are optional and independent:
-// crest_report is {difficulty, report_id, report_url} | null,
-// crest_upgrades is a pre-sorted (desc, nulls last) array | null.
-// ---------------------------------------------------------------------
-function numOrNull(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function renderCrestPanel(character) {
-  const wrap = h("section", { className: "rcard-wrap" }, [
-    h("span", { className: "rcard__cap", text: character.name || "Crests" }),
-  ]);
-  const inner = h("div", { className: "rcard" }, [h("div", { className: "rcard__in" })]);
-  const body = inner.firstChild;
-  wrap.appendChild(inner);
-
-  const report = character.crest_report;
-  if (report && typeof report === "object") {
-    const url = isReportUrl(report.report_url);
-    const link = linkOrText(url, "Crest report ↗", { className: "report-card__link" });
-    if (typeof report.difficulty === "string" && report.difficulty) {
-      link.setAttribute("title", `${report.difficulty} crest report`);
-    }
-    body.appendChild(h("div", { className: "report-card__head" }, [link]));
+function tileBestMythic(character) {
+  const reports = Array.isArray(character.reports) ? character.reports : [];
+  const mythic = reports.find((r) => r.difficulty === "Mythic");
+  const upgrades = mythic ? computeUpgrades(mythic.results) : [];
+  if (upgrades.length === 0) {
+    return tile("Best Mythic upgrade", [h("span", { className: "tile__muted", text: "No upgrades found" })]);
   }
+  const top = upgrades[0];
+  const url = wowheadItemUrl(top.item, null, top.level);
+  const link = linkOrText(url, cachedItemLabel(top.item), { className: "tile__link" });
+  const detail = h("div", { className: "tile__detail" }, [
+    h("span", { className: "pill pill--ilvl mono", text: Number.isFinite(top.level) ? String(top.level) : "?" }),
+    h("span", { className: "tile__pct mono", text: `+${top.percDiff.toFixed(2)}%` }),
+  ]);
+  return tile("Best Mythic upgrade", [link, detail]);
+}
 
+function tileNextCrest(character) {
   const upgrades = character.crest_upgrades;
   if (upgrades === null || upgrades === undefined) {
-    body.appendChild(h("p", { className: "muted-note", text: "No crest estimate for this run." }));
-    return wrap;
+    return tile("Next crest", [h("span", { className: "tile__muted", text: "No estimate" })]);
   }
   if (!Array.isArray(upgrades) || upgrades.length === 0) {
-    body.appendChild(h("p", { className: "muted-note", text: "Everything is fully upgraded." }));
-    return wrap;
+    return tile("Next crest", [h("span", { className: "tile__muted", text: "All upgraded" })]);
   }
-
-  const maxGain = upgrades.reduce((m, u) => {
-    const g = numOrNull(u.gain_pct);
-    return g !== null && g > m ? g : m;
-  }, 0.0001);
-
-  const rows = h("div", { className: "crest-rows" });
-  upgrades.forEach((u) => rows.appendChild(crestRow(u, maxGain)));
-  body.appendChild(rows);
-
-  return wrap;
-}
-
-function crestRow(u, maxGain) {
-  const level = numOrNull(u.level);
-  const maxLevel = numOrNull(u.max_level);
-  const rank = numOrNull(u.rank);
-  const itemIdNum = Number(u.item_id);
-
+  const u = upgrades[0];
   const url = wowheadItemUrl(u.item_id, null, u.level);
-  const label =
-    typeof u.name === "string" && u.name
-      ? u.name
-      : Number.isInteger(itemIdNum)
-        ? `Item ${itemIdNum}`
-        : "Unknown item";
-  const link = linkOrText(url, label, { className: "crest-row__item" });
-
-  const meta = h("div", { className: "crest-row__meta" }, [
+  const label = cachedItemLabel(u.item_id, u.name);
+  const link = linkOrText(url, label, { className: "tile__link" });
+  const line = h("div", { className: "tile__crest-line" }, [
+    h("span", { className: "tile__slot", text: `${slotLabel(String(u.slot || "").toLowerCase())} · ` }),
     link,
-    h("span", { className: "crest-row__slot", text: slotLabel(String(u.slot || "").toLowerCase()) }),
   ]);
-
-  const track = typeof u.track === "string" && u.track ? u.track : "?";
-  const trackEl = h("span", {
-    className: "crest-row__track",
-    text: `${track} ${rank === null ? "?" : rank}/6 → 6/6`,
-  });
-
-  const levelsEl = h("span", {
-    className: "crest-row__levels mono",
-    text: `${level === null ? "?" : level} → ${maxLevel === null ? "?" : maxLevel}`,
-  });
-
+  const rank = numOrNull(u.rank);
   const gain = numOrNull(u.gain_pct);
-  const kids = [meta, trackEl, levelsEl];
-  if (gain === null) {
-    kids.push(h("span", { className: "crest-row__no-estimate muted-note", text: "No estimate" }));
-  } else {
-    const pct = Math.max(2, Math.min(100, (gain / maxGain) * 100));
-    const track2 = h("div", { className: "bar-track" });
-    const fill = h("div", { className: "bar-fill bar-fill--gold" });
-    fill.style.width = `${pct}%`;
-    track2.appendChild(fill);
-    kids.push(track2);
-    kids.push(h("span", { className: "crest-row__pct mono", text: `+${gain.toFixed(2)}%` }));
-  }
-
-  return h("div", { className: "crest-row" }, kids);
+  const detail = h("div", { className: "tile__detail" }, [
+    h("span", { className: "tile__rank mono", text: `${rank === null ? "?" : rank}/6 → 6/6` }),
+    gain === null
+      ? h("span", { className: "tile__muted", text: "no estimate" })
+      : h("span", { className: "tile__pct tile__pct--gold mono", text: `+${gain.toFixed(2)}%` }),
+  ]);
+  return tile("Next crest", [line, detail]);
 }
 
-function renderReportCard(report, key) {
+function tileAvgIlvl(character) {
+  const { avg, count, total } = computeAvgIlvl(character.gear);
+  const body = [h("span", { className: "tile__big mono", text: avg === null ? "?" : String(avg) })];
+  if (count < total) {
+    body.push(h("span", { className: "tile__muted", text: `based on ${count} of ${total} slots` }));
+  }
+  return tile("Avg ilvl", body);
+}
+
+function tileLastRun(run, character) {
+  if (!run) return tile("Last run", [h("span", { className: "tile__muted", text: "Unknown" })]);
+  const when = run.finished_at || run.started_at;
+  const body = [
+    h("span", { className: "tile__big", text: relativeTime(when), attrs: { title: absoluteTime(when) } }),
+    h("div", { className: "tile__detail" }, [
+      h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? "OK" : "Failed" }),
+      difficultyChecksRow(character ? character.reports : []),
+    ]),
+  ];
+  return tile("Last run", body);
+}
+
+// ---------------------------------------------------------------------
+// Reports: one card, Heroic/Mythic tab switch (default Mythic).
+// ---------------------------------------------------------------------
+function renderReportsCard(character, charIdx) {
+  clear(els.reportsContainer);
+  const reports = Array.isArray(character.reports) ? character.reports : [];
+
+  if (character.error) {
+    els.reportsContainer.appendChild(errorCapsule(character.error));
+  }
+  if (character.skipped) {
+    const label = typeof character.skipped === "string" ? `Skipped: ${character.skipped}` : "Skipped";
+    els.reportsContainer.appendChild(h("span", { className: "pill pill--muted", text: label }));
+  }
+  if (Array.isArray(character.warnings) && character.warnings.length > 0) {
+    const warnRow = h("div", { className: "warning-row" });
+    character.warnings.forEach((w) => warnRow.appendChild(h("span", { className: "pill pill--warn", text: String(w) })));
+    els.reportsContainer.appendChild(warnRow);
+  }
+
+  if (reports.length === 0) {
+    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: "No reports for this run." }));
+    return;
+  }
+
+  const byDiff = new Map(reports.map((r) => [r.difficulty, r]));
+  const available = REPORT_DIFFICULTIES.filter((d) => byDiff.has(d));
+  if (available.length === 0) {
+    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: "No reports for this run." }));
+    return;
+  }
+  if (!available.includes(state.reportsTab)) state.reportsTab = available[available.length - 1];
+
   const wrap = h("section", { className: "rcard-wrap" }, [
-    h("span", { className: "rcard__cap", text: report.difficulty || "Report" }),
+    h("span", { className: "rcard__cap", text: character.name || "Reports" }),
   ]);
   const inner = h("div", { className: "rcard" }, [h("div", { className: "rcard__in" })]);
   const body = inner.firstChild;
   wrap.appendChild(inner);
+
+  const tabIds = available.map((d) => `tab-${charIdx}-${d}`);
+  const panelIds = available.map((d) => `panel-${charIdx}-${d}`);
+
+  const tablist = h("div", { className: "tablist", attrs: { role: "tablist", "aria-label": "Report difficulty" } });
+  const tabButtons = [];
+  available.forEach((diff, i) => {
+    const selected = diff === state.reportsTab;
+    const btn = h("button", {
+      className: `tab${selected ? " is-selected" : ""}`,
+      text: diff,
+      attrs: {
+        role: "tab",
+        type: "button",
+        id: tabIds[i],
+        "aria-selected": String(selected),
+        "aria-controls": panelIds[i],
+        tabindex: selected ? "0" : "-1",
+      },
+    });
+    btn.addEventListener("click", () => selectReportsTab(character, charIdx, diff));
+    btn.addEventListener("keydown", (e) => onTabKeydown(e, available, i, character, charIdx));
+    tabButtons.push(btn);
+    tablist.appendChild(btn);
+  });
+  body.appendChild(tablist);
+
+  available.forEach((diff, i) => {
+    const panel = h("div", {
+      className: "tabpanel",
+      attrs: {
+        role: "tabpanel",
+        id: panelIds[i],
+        "aria-labelledby": tabIds[i],
+      },
+    });
+    panel.hidden = diff !== state.reportsTab;
+    panel.appendChild(reportPanelContent(byDiff.get(diff), `${charIdx}:${diff}`));
+    body.appendChild(panel);
+  });
+
+  els.reportsContainer.appendChild(wrap);
+  refreshWowheadLinks(); // a tab switch rebuilds the whole card, links included
+}
+
+function onTabKeydown(e, available, i, character, charIdx) {
+  let nextIndex = null;
+  if (e.key === "ArrowRight") nextIndex = (i + 1) % available.length;
+  else if (e.key === "ArrowLeft") nextIndex = (i - 1 + available.length) % available.length;
+  else if (e.key === "Home") nextIndex = 0;
+  else if (e.key === "End") nextIndex = available.length - 1;
+  if (nextIndex === null) return;
+  e.preventDefault();
+  selectReportsTab(character, charIdx, available[nextIndex]);
+  const tabs = Array.from(els.reportsContainer.querySelectorAll('[role="tab"]'));
+  tabs[nextIndex]?.focus();
+}
+
+function selectReportsTab(character, charIdx, diff) {
+  state.reportsTab = diff;
+  renderReportsCard(character, charIdx);
+}
+
+function reportPanelContent(report, key) {
+  const frag = h("div", { className: "report-panel" });
 
   const headRow = h("div", { className: "report-card__head" });
   const url = isReportUrl(report.report_url);
@@ -740,16 +872,16 @@ function renderReportCard(report, key) {
     statusPill = h("span", {
       className: "pill pill--ok",
       text: "Imported to WoWAudit",
-      attrs: { title: `Imported with the ${report.uploaded_via}` }, // "API key" or "login session"
+      attrs: { title: `Imported with the ${report.uploaded_via}` },
     });
   } else {
     statusPill = h("span", { className: "pill pill--muted", text: "Not imported" });
   }
   headRow.appendChild(statusPill);
-  body.appendChild(headRow);
+  frag.appendChild(headRow);
 
   if (report.error) {
-    body.appendChild(h("p", { className: "report-card__error", text: String(report.error) }));
+    frag.appendChild(h("p", { className: "report-card__error", text: String(report.error) }));
   }
 
   const upgrades = computeUpgrades(report.results);
@@ -769,62 +901,67 @@ function renderReportCard(report, key) {
         filterButtons.get(l).setAttribute("aria-pressed", String(l === loc));
         filterButtons.get(l).classList.toggle("is-active", l === loc);
       });
-      renderBars();
+      renderRows();
     });
     if (loc === ui.loc) btn.classList.add("is-active");
     filterButtons.set(loc, btn);
     filterRow.appendChild(btn);
   });
-  body.appendChild(filterRow);
+  frag.appendChild(filterRow);
 
-  const barsContainer = h("div", { className: "bars" });
-  body.appendChild(barsContainer);
+  const rowsContainer = h("div", { className: "upgrade-rows" });
+  frag.appendChild(rowsContainer);
 
   const toggleWrap = h("div", { className: "bars-toggle" });
-  body.appendChild(toggleWrap);
+  frag.appendChild(toggleWrap);
 
-  function renderBars() {
-    rememberWowheadNames(barsContainer);
-    clear(barsContainer);
+  const TOP_N = 10;
+
+  function renderRows() {
+    clear(rowsContainer);
     clear(toggleWrap);
-    const filtered =
-      ui.loc === "All" ? upgrades : upgrades.filter((u) => u.dropLoc === ui.loc);
+    const filtered = ui.loc === "All" ? upgrades : upgrades.filter((u) => u.dropLoc === ui.loc);
 
     if (filtered.length === 0) {
-      barsContainer.appendChild(h("p", { className: "muted-note", text: "No upgrades in this filter." }));
+      rowsContainer.appendChild(h("p", { className: "muted-note", text: "No upgrades in this filter." }));
       return;
     }
 
     const maxPct = filtered.reduce((m, u) => Math.max(m, u.percDiff), 0.0001);
-    const shown = ui.expanded ? filtered : filtered.slice(0, 15);
-    shown.forEach((u) => barsContainer.appendChild(upgradeBar(u, maxPct)));
+    const shown = ui.expanded ? filtered : filtered.slice(0, TOP_N);
+    shown.forEach((u) => rowsContainer.appendChild(upgradeRow(u, maxPct)));
 
-    if (filtered.length > 15) {
+    if (filtered.length > TOP_N) {
       const toggleBtn = h("button", {
         className: "pill pill--action",
-        text: ui.expanded ? "Show top 15" : `Show all ${filtered.length}`,
+        text: ui.expanded ? `Show top ${TOP_N}` : `Show all ${filtered.length}`,
         attrs: { type: "button" },
       });
       toggleBtn.addEventListener("click", () => {
         ui.expanded = !ui.expanded;
-        renderBars();
+        renderRows();
       });
       toggleWrap.appendChild(toggleBtn);
     }
-    // New links need Wowhead's pass for their name, icon and quality colour.
+
+    // Filter/toggle rebuild these rows as fresh elements. cachedItemLabel()
+    // already avoids a flash for names Wowhead resolved before, but the
+    // freshly created <a> elements themselves still need this to pick up
+    // colour/icon and any name not yet cached.
     refreshWowheadLinks();
   }
 
-  renderBars();
-  return wrap;
+  renderRows();
+  return frag;
 }
 
-function upgradeBar(upgrade, maxPct) {
+function upgradeRow(upgrade, maxPct) {
   const url = wowheadItemUrl(upgrade.item, null, upgrade.level);
-  const itemId = String(Number(upgrade.item));
-  const name = wowheadNames.get(itemId) || `Item ${upgrade.item}`;
-  const link = linkOrText(url, name, { className: "upgrade-bar__item" });
-  if (url) link.dataset.itemId = itemId;
+  const link = linkOrText(url, cachedItemLabel(upgrade.item), { className: "upgrade-row__item" });
+  const ilvlPill = h("span", {
+    className: "pill pill--ilvl mono",
+    text: Number.isFinite(upgrade.level) ? String(upgrade.level) : "?",
+  });
 
   const pct = Math.max(2, Math.min(100, (upgrade.percDiff / maxPct) * 100));
   const track = h("div", { className: "bar-track" });
@@ -832,43 +969,183 @@ function upgradeBar(upgrade, maxPct) {
   fill.style.width = `${pct}%`;
   track.appendChild(fill);
 
-  return h("div", { className: "upgrade-bar" }, [
-    h("div", { className: "upgrade-bar__meta" }, [
-      link,
-      h("span", { className: "upgrade-bar__source", text: sourceLabel(upgrade.dropLoc, upgrade.dropDifficulty) }),
-    ]),
+  return h("div", { className: "upgrade-row" }, [
+    link,
+    ilvlPill,
+    h("span", { className: "upgrade-row__source", text: sourceLabel(upgrade.dropLoc, upgrade.dropDifficulty) }),
     track,
-    h("span", { className: "upgrade-bar__pct mono", text: `+${upgrade.percDiff.toFixed(2)}%` }),
+    h("span", { className: "upgrade-row__pct mono", text: `+${upgrade.percDiff.toFixed(2)}%` }),
   ]);
 }
 
-function renderGearGrid(character) {
-  const wrap = h("section", { className: "rcard-wrap" }, [
-    h("span", { className: "rcard__cap", text: character.name || "Gear" }),
-  ]);
-  const inner = h("div", { className: "rcard" }, [h("div", { className: "rcard__in" })]);
-  const body = inner.firstChild;
-  wrap.appendChild(inner);
+// ---------------------------------------------------------------------
+// Crest sidebar: compact rows, built from crest_report/crest_upgrades.
+// Both are optional and independent: crest_report is
+// {difficulty, report_id, report_url} | null, crest_upgrades is a
+// pre-sorted (desc, nulls last) array | null.
+// ---------------------------------------------------------------------
+function renderCrestSidebar(character) {
+  clear(els.crestContainer);
 
-  const gear = Array.isArray(character.gear) ? character.gear : [];
-  if (gear.length === 0) {
-    body.appendChild(h("p", { className: "muted-note", text: "No gear recorded for this run." }));
-    return wrap;
+  const report = character.crest_report;
+  if (report && typeof report === "object") {
+    const url = isReportUrl(report.report_url);
+    const link = linkOrText(url, "Crest report ↗", { className: "report-card__link" });
+    if (typeof report.difficulty === "string" && report.difficulty) {
+      link.setAttribute("title", `${report.difficulty} crest report`);
+    }
+    els.crestContainer.appendChild(h("div", { className: "report-card__head" }, [link]));
   }
 
-  const grid = h("div", { className: "gear-grid" });
-  gear.forEach((g) => {
-    const url = wowheadItemUrl(g.item_id, g.bonus_ids, g.ilvl);
-    const link = linkOrText(url, g.name || `Item ${g.item_id}`, { className: "gear-slot__item" });
-    const slot = h("div", { className: "gear-slot" }, [
-      h("span", { className: "gear-slot__label", text: slotLabel(g.slot) }),
-      link,
-      h("span", { className: "gear-slot__ilvl mono", text: Number.isFinite(g.ilvl) ? String(g.ilvl) : "" }),
+  const upgrades = character.crest_upgrades;
+  if (upgrades === null || upgrades === undefined) {
+    els.crestContainer.appendChild(h("p", { className: "muted-note", text: "No crest estimate for this run." }));
+    return;
+  }
+  if (!Array.isArray(upgrades) || upgrades.length === 0) {
+    els.crestContainer.appendChild(h("p", { className: "muted-note", text: "Everything is fully upgraded." }));
+    return;
+  }
+
+  const maxGain = upgrades.reduce((m, u) => {
+    const g = numOrNull(u.gain_pct);
+    return g !== null && g > m ? g : m;
+  }, 0.0001);
+
+  const list = h("div", { className: "crest-compact-list" });
+  upgrades.forEach((u) => list.appendChild(crestCompactRow(u, maxGain)));
+  els.crestContainer.appendChild(list);
+}
+
+function crestCompactRow(u, maxGain) {
+  const level = numOrNull(u.level);
+  const maxLevel = numOrNull(u.max_level);
+  const rank = numOrNull(u.rank);
+
+  const url = wowheadItemUrl(u.item_id, null, u.level);
+  const label = cachedItemLabel(u.item_id, u.name);
+  const link = linkOrText(url, label, { className: "crest-compact-row__item" });
+
+  const track = typeof u.track === "string" && u.track ? u.track : "?";
+  const metaText = `${slotLabel(String(u.slot || "").toLowerCase())} · ${track} ${rank === null ? "?" : rank}/6 → 6/6 · ${level === null ? "?" : level}→${maxLevel === null ? "?" : maxLevel}`;
+  const meta = h("span", { className: "crest-compact-row__meta", text: metaText });
+
+  const gain = numOrNull(u.gain_pct);
+  const barRow = h("div", { className: "crest-compact-row__bar-row" });
+  if (gain === null) {
+    barRow.appendChild(h("span", { className: "muted-note", text: "No estimate" }));
+  } else {
+    const pct = Math.max(2, Math.min(100, (gain / maxGain) * 100));
+    const track2 = h("div", { className: "bar-track" });
+    const fill = h("div", { className: "bar-fill bar-fill--gold" });
+    fill.style.width = `${pct}%`;
+    track2.appendChild(fill);
+    barRow.appendChild(track2);
+    barRow.appendChild(h("span", { className: "crest-row__pct mono", text: `+${gain.toFixed(2)}%` }));
+  }
+
+  return h("div", { className: "crest-compact-row" }, [link, meta, barRow]);
+}
+
+// ---------------------------------------------------------------------
+// Gear: WoW-style paper doll.
+// ---------------------------------------------------------------------
+const PAPERDOLL_LEFT = ["head", "neck", "shoulder", "back", "chest", "shirt", "tabard", "wrist"];
+const PAPERDOLL_RIGHT = ["hands", "waist", "legs", "feet", "finger1", "finger2", "trinket1", "trinket2"];
+const PAPERDOLL_WEAPONS = ["main_hand", "off_hand"];
+const DIMMED_SLOTS = new Set(["shirt", "tabard"]);
+
+function paperdollSlot(slot, bySlot) {
+  const g = bySlot.get(slot);
+  const dimmed = DIMMED_SLOTS.has(slot);
+  const classes = ["pd-slot"];
+  if (dimmed) classes.push("pd-slot--dim");
+
+  if (!g) {
+    classes.push("pd-slot--empty");
+    return h("div", { className: classes.join(" ") }, [
+      h("span", { className: "pd-slot__label", text: slotLabel(slot) }),
     ]);
-    grid.appendChild(slot);
+  }
+
+  const url = wowheadItemUrl(g.item_id, g.bonus_ids, g.ilvl);
+  const link = linkOrText(url, cachedItemLabel(g.item_id, g.name), { className: "pd-slot__item" });
+  const ilvlPill = h("span", {
+    className: "pill pill--ilvl mono pd-slot__ilvl",
+    text: Number.isFinite(g.ilvl) ? String(g.ilvl) : "?",
   });
-  body.appendChild(grid);
-  return wrap;
+
+  return h("div", { className: classes.join(" ") }, [
+    h("span", { className: "pd-slot__label", text: slotLabel(slot) }),
+    h("div", { className: "pd-slot__main" }, [link, ilvlPill]),
+  ]);
+}
+
+function renderPaperdoll(character) {
+  clear(els.gearContainer);
+
+  const gear = Array.isArray(character.gear) ? character.gear : [];
+  const bySlot = new Map(gear.map((g) => [g.slot, g]));
+
+  const idBlock = h("div", { className: "pd-id" }, [
+    h("div", { className: "pd-id__name", text: character.name || "Unknown character" }),
+    h("div", { className: "pd-id__spec", text: specLabel(character) }),
+  ]);
+  const { avg, count, total } = computeAvgIlvl(gear);
+  const ilvlLine = h("div", { className: "pd-id__ilvl" }, [
+    h("span", { text: "Avg ilvl " }),
+    h("b", { className: "mono", text: avg === null ? "?" : String(avg) }),
+  ]);
+  if (count < total) {
+    ilvlLine.appendChild(h("span", { className: "pd-id__ilvl-note", text: ` (${count}/${total} slots)` }));
+  }
+  idBlock.appendChild(ilvlLine);
+
+  const leftCol = h(
+    "div",
+    { className: "pd-col pd-col--left" },
+    PAPERDOLL_LEFT.map((slot) => paperdollSlot(slot, bySlot))
+  );
+  const rightCol = h(
+    "div",
+    { className: "pd-col pd-col--right" },
+    PAPERDOLL_RIGHT.map((slot) => paperdollSlot(slot, bySlot))
+  );
+  const weapons = h(
+    "div",
+    { className: "pd-weapons" },
+    PAPERDOLL_WEAPONS.map((slot) => paperdollSlot(slot, bySlot))
+  );
+
+  const doll = h("div", { className: "paperdoll" }, [idBlock, leftCol, rightCol, weapons]);
+  els.gearContainer.appendChild(doll);
+}
+
+// ---------------------------------------------------------------------
+// Top-level render: tiles + reports + crests + gear, all built from a full
+// run summary and all following the displayed run together.
+// ---------------------------------------------------------------------
+function renderRunData(fullData) {
+  clear(els.reportsContainer);
+  clear(els.crestContainer);
+  clear(els.gearContainer);
+  clear(els.tilesContainer);
+  renderMascot(Boolean(fullData.run && fullData.run.ok === true));
+
+  const characters = Array.isArray(fullData.characters) ? fullData.characters : [];
+  if (characters.length === 0) {
+    els.reportsContainer.appendChild(errorCapsule("This run has no character data."));
+    return;
+  }
+
+  renderTiles(fullData);
+
+  const character = characters[0];
+  renderReportsCard(character, 0);
+  renderCrestSidebar(character);
+  renderPaperdoll(character);
+
+  refreshWowheadLinks();
 }
 
 // ---------------------------------------------------------------------
@@ -885,6 +1162,14 @@ function clearGlobalError() {
   clear(els.globalError);
 }
 
+function clearAllRunViews() {
+  clear(els.tilesContainer);
+  clear(els.reportsContainer);
+  clear(els.crestContainer);
+  clear(els.gearContainer);
+  renderMascot(false);
+}
+
 async function loadLatest() {
   state.activeRunId = state.index && state.index.runs && state.index.runs[0] ? state.index.runs[0].id : null;
   renderViewingBanner(null, true);
@@ -896,10 +1181,7 @@ async function loadLatest() {
     clearGlobalError();
     renderRunData(data);
   } catch (err) {
-    clear(els.reportsContainer);
-    clear(els.crestContainer);
-    clear(els.gearContainer);
-    renderMascot(false);
+    clearAllRunViews();
     els.reportsContainer.appendChild(errorCapsule(`Could not load the latest run: ${err.message}`));
   }
 }
@@ -907,10 +1189,7 @@ async function loadLatest() {
 async function selectRun(id) {
   const url = runDataUrl(id);
   if (!url) {
-    clear(els.reportsContainer);
-    clear(els.crestContainer);
-    clear(els.gearContainer);
-    renderMascot(false);
+    clearAllRunViews();
     els.reportsContainer.appendChild(errorCapsule(`"${id}" is not a valid run id.`));
     return;
   }
@@ -924,10 +1203,7 @@ async function selectRun(id) {
     clearGlobalError();
     renderRunData(data);
   } catch (err) {
-    clear(els.reportsContainer);
-    clear(els.crestContainer);
-    clear(els.gearContainer);
-    renderMascot(false);
+    clearAllRunViews();
     els.reportsContainer.appendChild(errorCapsule(`Could not load run ${id}: ${err.message}`));
   }
 }
@@ -964,6 +1240,12 @@ function navigateToLatest() {
 async function init() {
   collectEls();
   setupWowheadTooltips();
+  observeWowheadNames();
+
+  // The <h1> is the single source of truth for the page title; the static
+  // <title> in the HTML is only the no-JS fallback.
+  const titleH1 = document.getElementById("pageTitle");
+  if (titleH1 && titleH1.textContent) document.title = titleH1.textContent;
 
   let indexData;
   try {
