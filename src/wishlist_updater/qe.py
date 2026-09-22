@@ -94,6 +94,9 @@ class QESettings:
     catalyst_limit: int = 4
     show_percent_upgrade: bool = True
     auto_gem: bool = False  # QE's "Auto-add Sockets"; the guild requires sims without sockets
+    # The SimC import's "Upgrade ALL to Max Level": equipped items count at their track's cap,
+    # like Raidbots' "Match Droptimizer Item Levels".
+    upgrade_all_to_max: bool = True
     crafted_stats: str | None = None  # e.g. "Crit / Haste"; None keeps QE's default
     ally_buffs_scaling: int | None = 75
     cosmic_crescendo: int | None = 75
@@ -180,6 +183,7 @@ def check_saved_report(
     mplus_index: int,
     crafted_index: int,
     auto_gem: bool,
+    upgrade_all_to_max: bool,
 ) -> str:
     """Check the report QE posted to its backend and return its ID.
 
@@ -199,6 +203,20 @@ def check_saved_report(
         raise QEError(f"QE ran with settings {actual}, expected {expected}")
     if payload.get("autoGem") != auto_gem:
         raise QEError(f"QE ran with autoGem={payload.get('autoGem')!r}, expected {auto_gem}")
+    if upgrade_all_to_max:
+        # QE raises every non-crafted item to its track's cap, so each track ends up at one level.
+        levels_by_track: dict[str, set[Any]] = {}
+        for item in payload.get("equippedItems") or []:
+            track = item.get("upgradeTrack") or ""
+            if track and "Crafted" not in track:
+                levels_by_track.setdefault(track, set()).add(item.get("level"))
+        uneven = {
+            track: sorted(levels) for track, levels in levels_by_track.items() if len(levels) > 1
+        }
+        if uneven:
+            raise QEError(
+                f"Upgrade ALL to Max Level didn't take effect; item levels by track: {uneven}"
+            )
 
     if not payload.get("results"):
         raise QEError("QE saved a report with no upgrade results")
@@ -231,7 +249,7 @@ async def generate_upgrade_report(
         await run.select_spec(identity.qe_spec)
 
         run.step = "importing the SimC string"
-        await run.import_simc(identity.simc)
+        await run.import_simc(identity.simc, upgrade_all_to_max=settings.upgrade_all_to_max)
 
         run.step = "applying Upgrade Finder settings"
         raid_index = await run.pick_raid_difficulty(settings.raid_difficulty)
@@ -252,6 +270,7 @@ async def generate_upgrade_report(
             mplus_index=mplus_index,
             crafted_index=crafted_index,
             auto_gem=settings.auto_gem,
+            upgrade_all_to_max=settings.upgrade_all_to_max,
         )
 
         run.step = f"confirming report {report_id} was saved"
@@ -307,12 +326,19 @@ class _Run:
         await option.click(timeout=self.timeout)
         await expect(spec_select).to_have_text(qe_spec, timeout=self.timeout)
 
-    async def import_simc(self, simc: str) -> None:
+    async def import_simc(self, simc: str, *, upgrade_all_to_max: bool) -> None:
         import_button = self.page.get_by_role("button").filter(has_text=_IMPORT_GEAR_TEXT).first
         await import_button.click(timeout=self.timeout)
         entry = self.page.locator("textarea#simcentry")
         await entry.fill(simc, timeout=self.timeout)
         dialog = self.page.get_by_role("dialog").filter(has=entry)
+
+        # Applied while the SimC string is parsed, so it must be set before Submit.
+        upgrade_all = dialog.get_by_label("Upgrade ALL to Max Level", exact=True)
+        await upgrade_all.set_checked(upgrade_all_to_max, timeout=self.timeout)
+        if await upgrade_all.is_checked() != upgrade_all_to_max:
+            raise QEError("Could not set 'Upgrade ALL to Max Level' in the SimC import dialog")
+
         await dialog.get_by_role("button", name="Submit", exact=True).click(timeout=self.timeout)
 
         # On success QE closes the dialog; on a validation failure it fills #SimCError.

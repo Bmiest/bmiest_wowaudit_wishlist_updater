@@ -19,14 +19,20 @@ from wishlist_updater.qe import (
 FIXTURES = Path(__file__).parent / "fixtures"
 ADDON_SIMC = (FIXTURES / "simc" / "shiftheal_addon.simc").read_text()
 SAVED_REPORT = json.loads((FIXTURES / "qe" / "saved_report_payload.json").read_text())
-# The settings the fixture report was generated with: Mythic, +10, 331, no sockets.
+# The settings the fixture report was generated with: Mythic, +10, 331, no sockets, and
+# without "Upgrade ALL to Max Level".
 REPORT_SETTINGS = {
     "qe_spec": "Holy Priest",
     "raid_index": 3,
     "mplus_index": 7,
     "crafted_index": 2,
     "auto_gem": False,
+    "upgrade_all_to_max": False,
 }
+
+
+def equipped(*items):
+    return [{"upgradeTrack": track, "level": level} for track, level in items]
 
 
 def test_parse_simc_identity():
@@ -119,6 +125,27 @@ def test_check_saved_report_rejects(path, value, error):
         check_saved_report(payload, **REPORT_SETTINGS)
 
 
+def test_check_saved_report_upgrade_all_to_max_puts_each_track_at_one_level():
+    settings = {**REPORT_SETTINGS, "upgrade_all_to_max": True}
+    capped = {
+        **SAVED_REPORT,
+        # Crafted and trackless items keep their own levels.
+        "equippedItems": equipped(
+            ("Hero", 321), ("Hero", 321), ("Myth", 334), ("Gilded Crafted", 331), ("", 285)
+        ),
+    }
+    assert check_saved_report(capped, **settings) == "hiswksqmzpbs"
+
+    # Shiftheal's real gear without the checkbox: Hero back/wrist at 311, Myth feet at 318.
+    uncapped = {
+        **SAVED_REPORT,
+        "equippedItems": equipped(("Hero", 321), ("Hero", 311), ("Myth", 334), ("Myth", 318)),
+    }
+    with pytest.raises(QEError, match=r"didn't take effect.*'Hero': \[311, 321\]"):
+        check_saved_report(uncapped, **settings)
+    assert check_saved_report(uncapped, **REPORT_SETTINGS) == "hiswksqmzpbs"
+
+
 def test_qe_settings_defaults_are_the_users_settings():
     assert dataclasses.asdict(QESettings()) == {
         "raid_difficulty": "Mythic",
@@ -127,6 +154,7 @@ def test_qe_settings_defaults_are_the_users_settings():
         "catalyst_limit": 4,
         "show_percent_upgrade": True,
         "auto_gem": False,
+        "upgrade_all_to_max": True,
         "crafted_stats": None,
         "ally_buffs_scaling": 75,
         "cosmic_crescendo": 75,
