@@ -36,6 +36,7 @@ Uploader = Callable[[str, str], Awaitable[None]]
 class Outcome:
     character: Character
     difficulty: str | None = None
+    kind: str = "wishlist"  # or "crest": report-only, gear at its current level
     report_url: str | None = None
     uploaded_via: str | None = None  # "API key" / "login session"; None = not uploaded
     skipped: str | None = None
@@ -46,6 +47,8 @@ class Outcome:
     @property
     def label(self) -> str:
         label = self.character.label
+        if self.kind == "crest":
+            return f"{label} · crest planner"
         return f"{label} · {self.difficulty}" if self.difficulty else label
 
 
@@ -174,6 +177,23 @@ async def process_character(
         except Exception as exc:
             log.exception("%s: failed", outcome.label)
             outcome.error = f"{type(exc).__name__}: {exc}"
+
+    if config.crest_planner:
+        # One more report with the equipped gear at its CURRENT level: QE then scores your
+        # own item at max upgrade, which is what spending crests on it would gain. Never
+        # uploaded, and a failure here is only a warning.
+        difficulty = raid_difficulties(config.qe)[-1]
+        crest = replace(base, difficulty=difficulty, kind="crest", warnings=[])
+        try:
+            crest.report_url = await generate_report(
+                profile,
+                {**config.qe, "raid_difficulty": difficulty, "upgrade_all_to_max": False},
+            )
+            log.info("%s: report %s", crest.label, crest.report_url)
+            outcomes.append(crest)
+        except Exception as exc:
+            log.warning("%s: failed: %s", crest.label, exc)
+            outcomes[-1].warnings.append(f"Crest planner report failed: {type(exc).__name__}")
     return outcomes
 
 
@@ -258,7 +278,9 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
         return
     rows = ["| Character | Result | Report |", "|---|---|---|"]
     for o in outcomes:
-        if o.error:
+        if o.kind == "crest":
+            result = "🪙 crest estimates (not uploaded)"
+        elif o.error:
             result = f"❌ {o.error}"
         elif o.skipped:
             result = f"⏭️ {o.skipped}"
@@ -322,6 +344,8 @@ async def run(args: argparse.Namespace) -> int:
             or o.skipped
             or (f"imported via {o.uploaded_via}" if o.uploaded_via else "report only")
         )
+        if o.kind == "crest":
+            status = "crest estimates (not uploaded)"
         print(f"{o.label}: {status} {o.report_url or ''}".rstrip())
     return 1 if any(o.error for o in outcomes) else 0
 

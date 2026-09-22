@@ -75,6 +75,7 @@ class Config:
     qe: dict[str, object]
     simc_source: str = "raiderio"
     wowaudit_team_url: str | None = None
+    crest_planner: bool = False
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -124,6 +125,7 @@ class Config:
             qe=dict(raw.get("qe", {})),
             simc_source=simc_source,
             wowaudit_team_url=team_url,
+            crest_planner=bool(raw.get("crest_planner", False)),
         )
 
 

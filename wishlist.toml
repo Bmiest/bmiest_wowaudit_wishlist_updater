@@ -6,6 +6,10 @@
 #   "blizzard" -- Blizzard Profile API, needs BLIZZARD_CLIENT_ID / BLIZZARD_CLIENT_SECRET
 simc_source = "raiderio"
 
+# Dashboard crest planner: one extra report-only QE run (gear at its current level) that
+# estimates what spending crests on each equipped item would gain.
+crest_planner = true
+
 # Team page used for keyless imports with your own login session (WOWAUDIT_SESSION).
 wowaudit_team_url = "https://wowaudit.com/guild/eu/draenor/kelderklasse/teams/main"
 

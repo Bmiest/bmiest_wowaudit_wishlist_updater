@@ -62,3 +62,115 @@ def test_build_summary_is_public_safe_and_grouped(monkeypatch):
     text = json.dumps(s)
     # the raw /simc export (bags, currencies) never goes to the public site
     assert "upgrade_currencies" not in text and "Gear from Bags" not in text
+
+
+# --- crest planner ---------------------------------------------------------------
+
+from wishlist_updater.config import Config  # noqa: E402
+from wishlist_updater.summary import crest_upgrades  # noqa: E402
+
+CURRENT = {
+    "equippedItems": [
+        {"id": 268218, "slot": "Feet", "level": 318, "upgradeTrack": "Myth", "upgradeRank": 1},
+        {"id": 159288, "slot": "Back", "level": 311, "upgradeTrack": "Hero", "upgradeRank": 3},
+        {"id": 999, "slot": "Wrist", "level": 300, "upgradeTrack": "Hero", "upgradeRank": 1},
+        {"id": 271092, "slot": "1H Weapon", "level": 334, "upgradeTrack": "Myth", "upgradeRank": 6},
+        {"id": 239649, "slot": "Waist", "level": 331, "upgradeTrack": "", "upgradeRank": 0},
+    ],
+    "results": [
+        {"item": 268218, "level": 334, "dropType": "max", "percDiff": 0.674},
+        {"item": 268218, "level": 334, "dropType": "bonus", "percDiff": 0.674},
+        {"item": 268218, "level": 318, "dropType": "drop", "percDiff": 0},
+        {"item": 159288, "level": 321, "dropType": "max", "percDiff": 0.283},
+    ],
+}
+CAPPED = {
+    "equippedItems": [
+        {"id": 268218, "slot": "Feet", "level": 334},
+        {"id": 159288, "slot": "Back", "level": 321},
+        {"id": 999, "slot": "Wrist", "level": 321},
+        {"id": 271092, "slot": "1H Weapon", "level": 334},
+        {"id": 239649, "slot": "Waist", "level": 331},
+    ]
+}
+
+
+def test_crest_upgrades_ranked_by_gain_with_unknowns_last():
+    gear = [{"item_id": 268218, "name": "Nek'zali's Spiritwalkers"}]
+    ups = crest_upgrades(CURRENT, CAPPED, gear)
+    assert [u["item_id"] for u in ups] == [268218, 159288, 999]
+    feet = ups[0]
+    assert feet["name"] == "Nek'zali's Spiritwalkers"
+    assert (feet["track"], feet["rank"], feet["level"], feet["max_level"]) == ("Myth", 1, 318, 334)
+    assert feet["gain_pct"] == 0.674
+    assert ups[2]["gain_pct"] is None  # no QE result at the cap level to estimate from
+
+
+def test_crest_planner_outcome_is_report_only_and_separate(monkeypatch):
+    calls = []
+
+    async def generate(profile, qe_settings):
+        calls.append((qe_settings["raid_difficulty"], qe_settings.get("upgrade_all_to_max")))
+        return "https://questionablyepic.com/live/upgradereport/x" + str(len(calls))
+
+    uploads = []
+
+    async def upload(url, name):
+        uploads.append(url)
+
+    config = Config(
+        characters=(SHIFTHEAL,),
+        qe={"raid_difficulty": ["Heroic", "Mythic"], "upgrade_all_to_max": True},
+        crest_planner=True,
+    )
+    import asyncio
+
+    outcomes = asyncio.run(
+        cli.process_character(
+            SHIFTHEAL,
+            config=config,
+            secrets=cli.Secrets(wowaudit_api_key="k"),
+            simc_override=ADDON,
+            generate_report=generate,
+            upload=upload,
+            upload_method="API key",
+        )
+    )
+    assert calls == [("Heroic", True), ("Mythic", True), ("Mythic", False)]
+    assert len(uploads) == 2  # the crest report is never uploaded
+    assert [o.kind for o in outcomes] == ["wishlist", "wishlist", "crest"]
+    assert outcomes[-1].label.endswith("crest planner") and outcomes[-1].uploaded_via is None
+
+    s = build_summary(
+        outcomes,
+        started_at=datetime(2026, 9, 22, tzinfo=UTC),
+        upload_method="API key",
+        fetch_results=False,
+    )
+    [char] = s["characters"]
+    assert [r["difficulty"] for r in char["reports"]] == ["Heroic", "Mythic"]
+    assert char["crest_report"]["report_id"] == "x3"
+
+
+def test_crest_planner_failure_is_only_a_warning():
+    async def generate(profile, qe_settings):
+        if qe_settings.get("upgrade_all_to_max") is False:
+            raise RuntimeError("QE hiccup")
+        return "https://questionablyepic.com/live/upgradereport/ok"
+
+    config = Config(characters=(SHIFTHEAL,), qe={"raid_difficulty": "Mythic"}, crest_planner=True)
+    import asyncio
+
+    outcomes = asyncio.run(
+        cli.process_character(
+            SHIFTHEAL,
+            config=config,
+            secrets=cli.Secrets(wowaudit_api_key=None),
+            simc_override=ADDON,
+            generate_report=generate,
+            upload=None,
+        )
+    )
+    assert [o.kind for o in outcomes] == ["wishlist"]
+    assert outcomes[0].error is None
+    assert any("Crest planner" in w for w in outcomes[0].warnings)
