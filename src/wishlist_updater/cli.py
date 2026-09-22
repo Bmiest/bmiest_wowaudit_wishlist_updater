@@ -9,6 +9,7 @@ import os
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 from wishlist_updater.config import DEFAULT_CONFIG_PATH, Character, Config, ConfigError, Secrets
@@ -73,6 +74,12 @@ def build_parser() -> argparse.ArgumentParser:
         "('cookie' pastes the _user_session cookie from your normal browser instead).",
     )
     p.add_argument("--dry-run", action="store_true", help="Generate reports but skip WoWAudit.")
+    p.add_argument(
+        "--summary-json",
+        type=Path,
+        metavar="PATH",
+        help="Write a public run summary (gear, report results, status) for the dashboard.",
+    )
     p.add_argument("--headed", action="store_true", help="Show the browser (local debugging).")
     p.add_argument("-v", "--verbose", action="store_true")
     return p
@@ -261,6 +268,7 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
 
 
 async def run(args: argparse.Namespace) -> int:
+    started_at = datetime.now(UTC)
     config = Config.load(args.config)
     characters = select_characters(config, args.character)
     secrets = Secrets.from_env()
@@ -294,6 +302,13 @@ async def run(args: argparse.Namespace) -> int:
             )
 
     write_step_summary(outcomes)
+    if args.summary_json:
+        from wishlist_updater.summary import build_summary, write_summary
+
+        write_summary(
+            build_summary(outcomes, started_at=started_at, upload_method=upload_method),
+            args.summary_json,
+        )
     for o in outcomes:
         status = (
             o.error
