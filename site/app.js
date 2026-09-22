@@ -264,6 +264,18 @@ function refreshWowheadLinks() {
   }
 }
 
+// Item names Wowhead has already filled in, keyed by item id. Upgrade rows start out as
+// "Item <id>", so re-rendered rows reuse a known name instead of flashing the placeholder.
+const wowheadNames = new Map();
+const PLACEHOLDER_NAME = /^Item \d+$/;
+
+function rememberWowheadNames(container) {
+  container.querySelectorAll("a[data-item-id]").forEach((link) => {
+    const name = link.textContent.trim();
+    if (name && !PLACEHOLDER_NAME.test(name)) wowheadNames.set(link.dataset.itemId, name);
+  });
+}
+
 // ---------------------------------------------------------------------
 // Fetching.
 // ---------------------------------------------------------------------
@@ -772,6 +784,7 @@ function renderReportCard(report, key) {
   body.appendChild(toggleWrap);
 
   function renderBars() {
+    rememberWowheadNames(barsContainer);
     clear(barsContainer);
     clear(toggleWrap);
     const filtered =
@@ -798,6 +811,8 @@ function renderReportCard(report, key) {
       });
       toggleWrap.appendChild(toggleBtn);
     }
+    // New links need Wowhead's pass for their name, icon and quality colour.
+    refreshWowheadLinks();
   }
 
   renderBars();
@@ -806,7 +821,10 @@ function renderReportCard(report, key) {
 
 function upgradeBar(upgrade, maxPct) {
   const url = wowheadItemUrl(upgrade.item, null, upgrade.level);
-  const link = linkOrText(url, `Item ${upgrade.item}`, { className: "upgrade-bar__item" });
+  const itemId = String(Number(upgrade.item));
+  const name = wowheadNames.get(itemId) || `Item ${upgrade.item}`;
+  const link = linkOrText(url, name, { className: "upgrade-bar__item" });
+  if (url) link.dataset.itemId = itemId;
 
   const pct = Math.max(2, Math.min(100, (upgrade.percDiff / maxPct) * 100));
   const track = h("div", { className: "bar-track" });
