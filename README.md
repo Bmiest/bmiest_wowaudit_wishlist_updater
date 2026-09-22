@@ -82,8 +82,10 @@ uv run pytest -m live                                    # hits real sites
 Every workflow run is published to https://bmiest.github.io/bmiest_wowaudit_wishlist_updater/,
 including failed and report-only runs. It shows the run history, the Heroic and Mythic reports
 with their top upgrades, and the gear you had equipped. The history lives on the
-`dashboard-data` branch, which keeps the newest 200 runs. Changes to the frontend (`site/`)
-redeploy on their own through `deploy-site.yml`, without a new pipeline run.
+`dashboard-data` branch, which keeps the newest 200 runs. The pipeline only records data
+there; `deploy-site.yml` is the one workflow that deploys the site. It runs after every pipeline
+run, whenever `site/` changes on `main` (no pipeline run, no WoWAudit upload), and on demand,
+and it always builds the latest `main` with the latest data.
 
 The site is public, so it only gets data that is public anyway: gear, QE report results and run
 status. Your WoWAudit session, your wishlist and the raw `/simc` export never go there.

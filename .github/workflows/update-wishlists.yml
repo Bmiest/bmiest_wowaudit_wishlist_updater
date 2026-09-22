@@ -132,20 +132,16 @@ jobs:
             git push -q origin HEAD:main
           fi
 
-  # Publishes the run (also a failed one) to the GitHub Pages dashboard. History lives on
-  # the dashboard-data branch; only public data is in the summary (see summary.py).
-  publish:
+  # Records the run (also a failed one) on the dashboard-data branch; only public data is in
+  # the summary (see summary.py). deploy-site.yml then deploys the site when this workflow
+  # completes, so there is exactly one deploy path.
+  record:
     needs: update
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write # push to the dashboard-data branch
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     defaults:
       run:
         shell: bash
@@ -163,13 +159,18 @@ jobs:
           set -euo pipefail
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git ls-remote --exit-code origin refs/heads/dashboard-data >/dev/null 2>&1; then
+          status=0
+          git ls-remote --exit-code origin refs/heads/dashboard-data >/dev/null || status=$?
+          if [ "$status" -eq 0 ]; then
             git fetch --depth=1 origin refs/heads/dashboard-data
             git worktree add --detach "$RUNNER_TEMP/history" FETCH_HEAD
-          else
+          elif [ "$status" -eq 2 ]; then # the branch doesn't exist yet: start it
             git worktree add --detach "$RUNNER_TEMP/history"
             git -C "$RUNNER_TEMP/history" checkout -q --orphan dashboard-data-init
             git -C "$RUNNER_TEMP/history" rm -rfq .
+          else
+            echo "::error::Could not query the dashboard-data branch (git exit $status)"
+            exit 1
           fi
           PYTHONPATH=src python3 -m wishlist_updater.dashboard \
             "$RUNNER_TEMP/summary/summary.json" "$RUNNER_TEMP/history/data"
@@ -179,20 +180,3 @@ jobs:
             git commit -qm "Dashboard data for run $GITHUB_RUN_ID"
             git push -q origin HEAD:refs/heads/dashboard-data
           fi
-
-      - name: Assemble site
-        run: |
-          set -euo pipefail
-          mkdir -p _site
-          if [ -d site ]; then cp -r site/. _site/; fi
-          rm -rf _site/data
-          cp -r "$RUNNER_TEMP/history/data" _site/data
-
-      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: _site
-
-      - id: deploy
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

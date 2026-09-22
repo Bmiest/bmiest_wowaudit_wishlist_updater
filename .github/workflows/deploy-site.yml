@@ -1,20 +1,24 @@
 name: Deploy dashboard site
 
-# Redeploys the GitHub Pages dashboard when the frontend (site/) changes on main,
-# using the run history already on the dashboard-data branch. No pipeline run, so no
-# extra QE reports or WoWAudit uploads. Push-only (no pull_request triggers).
+# The ONLY path that deploys GitHub Pages: always main's site/ plus the tip of the
+# dashboard-data branch. It runs after every pipeline run (which records data only), on
+# frontend pushes, and on demand. Its own concurrency group: a newer deploy replacing a
+# queued one is correct here, because every deploy builds the latest of both.
+# No pull_request triggers, and workflow_run only ever builds main.
 on:
+  workflow_run:
+    workflows: ["Update WoWAudit wishlists"]
+    types: [completed]
   push:
     branches: [main]
-    paths: ["site/**"]
+    paths: ["site/**", ".github/workflows/deploy-site.yml"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Same group as update-wishlists.yml, so two deploys never race.
 concurrency:
-  group: update-wishlists
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -22,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      contents: read # job-level permissions replace the workflow-level set
       pages: write
       id-token: write
     environment:
@@ -32,19 +37,32 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main # never an older commit, whatever triggered the deploy
+          persist-credentials: false
 
       - name: Assemble site
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           mkdir -p _site
           cp -r site/. _site/
           rm -rf _site/data
-          if git ls-remote --exit-code origin refs/heads/dashboard-data >/dev/null 2>&1; then
-            git fetch -q --depth=1 origin refs/heads/dashboard-data
+          status=0
+          git ls-remote --exit-code "$remote" refs/heads/dashboard-data >/dev/null || status=$?
+          if [ "$status" -eq 0 ]; then
+            git fetch -q --depth=1 "$remote" refs/heads/dashboard-data
             git archive FETCH_HEAD data | tar -x -C _site
+          elif [ "$status" -eq 2 ]; then
+            mkdir -p _site/data # no runs recorded yet
           else
-            mkdir -p _site/data
+            # Never replace the live dashboard with an empty one because of a git hiccup.
+            echo "::error::Could not query the dashboard-data branch (git exit $status)"
+            exit 1
           fi
+          test -f _site/index.html
           find _site -maxdepth 2 | sort
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
