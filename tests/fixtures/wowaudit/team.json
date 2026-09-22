@@ -1,0 +1,12 @@
+{
+  "id": 66817,
+  "name": "Main",
+  "settings": {
+    "wishlistLocked": {"field": "wishlist_locked", "value": false},
+    "wishlistEditable": {"field": "wishlist_editable", "value": false}
+  },
+  "members": [
+    {"characterReference": {"id": 4294788, "name": "Shiftheal", "userId": 1001}, "teamRank": {"wishlist_visibility": true}},
+    {"characterReference": {"id": 4200001, "name": "Someoneelse", "userId": 2002}, "teamRank": {"wishlist_visibility": true}}
+  ]
+}

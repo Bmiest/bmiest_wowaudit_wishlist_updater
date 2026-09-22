@@ -1,0 +1,10 @@
+{
+  "currentSeason": {"id": 18, "name": "Season 2"},
+  "user": {
+    "id": 1001,
+    "teamReferences": [
+      {"id": 61820, "name": "Main", "fullUrl": "https://wowaudit.com/guild/eu/draenor/golden-age/teams/main"},
+      {"id": 66817, "name": "Main", "fullUrl": "https://wowaudit.com/guild/eu/draenor/kelderklasse/teams/main"}
+    ]
+  }
+}
