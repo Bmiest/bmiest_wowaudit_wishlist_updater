@@ -332,3 +332,22 @@ def test_raiderio_sample_fixture_is_current():
     """tests/fixtures/simc/shiftheal_raiderio.simc is the QE-module test input; keep it in sync."""
     expected = (Path(__file__).parent / "fixtures" / "simc" / "shiftheal_raiderio.simc").read_text()
     assert _raiderio_profile().text == expected
+
+
+@pytest.mark.parametrize("drop_talents", [False, True])
+@pytest.mark.parametrize("source", ["blizzard", "raiderio"])
+def test_item_lines_start_at_or_after_line_8(source, drop_talents, blizzard_json):
+    """QE's processAllLines() only parses item lines from index 8 onward."""
+    now = datetime(2026, 9, 22, 21, 27)
+    if source == "blizzard":
+        summary, equipment, specs = blizzard_json
+        if drop_talents:
+            specs = {**specs, "active_specialization": {"id": -1}}
+        text = build_simc(summary, equipment, specs, region="eu", now=now).text
+    else:
+        data = {**RAIDERIO_JSON, "talentLoadout": {}} if drop_talents else RAIDERIO_JSON
+        text = build_simc_from_raiderio(data, realm_slug="ragnaros", region="eu", now=now).text
+    lines = text.splitlines()
+    first_item = next(i for i, line in enumerate(lines) if "=,id=" in line)
+    assert first_item >= 8
+    assert any(line.startswith("priest=") for line in lines[:8])
