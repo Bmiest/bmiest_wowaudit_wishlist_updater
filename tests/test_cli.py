@@ -151,3 +151,10 @@ async def test_overrides_applied_to_fetched_gear_not_to_simc_exports(uploads, mo
         assert outcome.error is None
     assert "head=,id=1,redirected_base_stats=9,ilevel=5" in seen[0]
     assert seen[1] == ADDON_SIMC
+
+
+def test_step_summary_report_only(tmp_path, monkeypatch):
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    cli.write_step_summary([cli.Outcome(SHIFTHEAL, report_url=REPORT_URL)])
+    assert "report only" in summary.read_text()

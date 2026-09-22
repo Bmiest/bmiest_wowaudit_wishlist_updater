@@ -168,7 +168,7 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
         elif o.uploaded:
             result = "✅ imported"
         else:
-            result = "🧪 dry run"
+            result = "📋 report only: paste the link into WoWAudit"
         if o.warnings:
             result += "<br>⚠️ " + "<br>⚠️ ".join(o.warnings)
         report = f"[link]({o.report_url})" if o.report_url else ""
@@ -181,8 +181,9 @@ async def run(args: argparse.Namespace) -> int:
     config = Config.load(args.config)
     characters = select_characters(config, args.character)
     secrets = Secrets.from_env()
-    if not args.dry_run:
-        secrets.require("wowaudit_api_key")
+    report_only = args.dry_run or not secrets.wowaudit_api_key
+    if report_only and not args.dry_run:
+        log.warning("WOWAUDIT_API_KEY not set: generating reports only; paste them into WoWAudit")
 
     simc_override = None
     if args.simc_file is not None:
@@ -201,7 +202,7 @@ async def run(args: argparse.Namespace) -> int:
                 secrets=secrets,
                 simc_override=simc_override,
                 generate_report=generate,
-                dry_run=args.dry_run,
+                dry_run=report_only,
             )
             for c in characters
         ]
@@ -210,7 +211,7 @@ async def run(args: argparse.Namespace) -> int:
 
     write_step_summary(outcomes)
     for o in outcomes:
-        status = o.error or o.skipped or ("imported" if o.uploaded else "dry run")
+        status = o.error or o.skipped or ("imported" if o.uploaded else "report only")
         print(f"{o.character.label}: {status} {o.report_url or ''}".rstrip())
     return 1 if any(o.error for o in outcomes) else 0
 
