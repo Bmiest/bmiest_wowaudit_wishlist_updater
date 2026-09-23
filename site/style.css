@@ -364,6 +364,7 @@ a:hover { text-decoration-color: var(--jade); }
 .pd-id__ilvl { margin-top: 8px; font-size: 13px; color: var(--ink-300); }
 .pd-id__ilvl-note { color: var(--ink-500); }
 .pd-id__asof { margin-top: 2px; font-size: 12px; color: var(--ink-400); }
+.pd-id__update { margin-top: 8px; }
 .pd-weapons { grid-area: weapons; display: flex; flex-direction: column; }
 
 .pd-slot {
@@ -416,6 +417,9 @@ a:hover { text-decoration-color: var(--jade); }
 }
 .footer-link { font-size: 13px; color: var(--ink-400); }
 .footer-link:hover { color: var(--jade); }
+.footer-attribution { font-size: 13px; color: var(--ink-400); }
+.footer-attribution a { color: var(--paper-dim); }
+.footer-attribution a:hover { color: var(--jade); }
 
 .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
 

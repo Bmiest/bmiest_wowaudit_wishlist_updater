@@ -72,7 +72,8 @@
 
   <section class="view" aria-labelledby="gearHeading">
     <h2 id="gearHeading" class="view__title">Gear</h2>
-    <p class="section-caption">Equipped gear as of this run, from Raider.io.</p>
+    <!-- Raider.io's API terms require a link back to raider.io. app.js points it at the character's profile. -->
+    <p class="section-caption">Equipped gear as of this run, from <a id="gearSourceLink" href="https://raider.io" target="_blank" rel="noopener noreferrer">Raider.io</a>.</p>
     <div id="gearContainer" class="paperdoll-container"></div>
   </section>
 
@@ -86,6 +87,7 @@
         <li>This page is republished after every run.</li>
       </ol>
     </details>
+    <p class="footer-attribution">Gear data: <a href="https://raider.io" target="_blank" rel="noopener noreferrer">Raider.io</a></p>
     <a class="footer-link" href="https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
   </footer>
 
