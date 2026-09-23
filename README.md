@@ -38,10 +38,11 @@ added, and `upgrade_all_to_max = true` counts your equipped gear at its max upgr
 closest thing QE has to Raidbots' "Match Droptimizer Item Levels").
 
 `raid_difficulty` can be a single difficulty or a list. QE only runs one difficulty per report,
-so every difficulty in the list becomes its own report and its own WoWAudit upload, in the
-listed order. Keep `"Mythic"` last. Where two reports overlap (the +10 dungeon items), the last
-upload wins, and the Mythic numbers are the ones the guild wants. The current setting is
-`["Heroic", "Mythic"]`.
+so every difficulty in the list becomes its own report, in the listed order. `upload_difficulties`
+picks which of them go to WoWAudit; the rest are only shown on the dashboard. Currently all of
+`["Heroic", "Mythic"]` get a report, and only Mythic is uploaded, to keep the number of uploads
+low. If you upload more than one, keep `"Mythic"` last: where two reports overlap (the +10
+dungeon items), the last upload wins, and the Mythic numbers are the ones the guild wants.
 
 ### 3. Runner
 

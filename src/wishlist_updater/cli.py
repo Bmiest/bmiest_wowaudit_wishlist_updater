@@ -221,6 +221,11 @@ async def process_character(
             log.info("%s: report %s", outcome.label, outcome.report_url)
             if upload is None:
                 continue
+            if (
+                config.upload_difficulties is not None
+                and difficulty not in config.upload_difficulties
+            ):
+                continue  # dashboard-only difficulty
             fp = fingerprint(profile.text, settings, difficulty)
             # WoWAudit allows this automation on the condition that it uploads less: skip
             # reports whose inputs haven't changed, unless the user asked for this upload.

@@ -15,6 +15,10 @@ crest_planner = true
 # can land just under 48 h after the last upload, and must still re-upload.
 reupload_after_days = 1.75
 
+# Only these difficulties are uploaded to WoWAudit (fewer uploads). The other reports in
+# [qe] raid_difficulty are still generated for the dashboard.
+upload_difficulties = ["Mythic"]
+
 # Team page used for keyless imports with your own login session (WOWAUDIT_SESSION).
 wowaudit_team_url = "https://wowaudit.com/guild/eu/draenor/kelderklasse/teams/main"
 

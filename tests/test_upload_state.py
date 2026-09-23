@@ -147,3 +147,44 @@ def test_save_upload_state_round_trips(tmp_path):
     path = tmp_path / "cache" / "upload-state.json"
     cli.save_upload_state(path, state)
     assert load_state(path) == state
+
+
+async def test_only_listed_difficulties_are_uploaded(monkeypatch):
+    uploads, _ = _harness(monkeypatch)
+
+    async def generate(profile, qe_settings):
+        return "https://questionablyepic.com/live/upgradereport/r" + qe_settings["raid_difficulty"]
+
+    async def upload(url, name):
+        uploads.append(url.rsplit("/", 1)[1])
+
+    config = Config(
+        characters=(SHIFTHEAL,),
+        qe={"raid_difficulty": ["Heroic", "Mythic"]},
+        upload_difficulties=("Mythic",),
+    )
+    heroic, mythic = await cli.process_character(
+        SHIFTHEAL,
+        config=config,
+        secrets=Secrets(wowaudit_api_key=None),
+        simc_override=None,
+        generate_report=generate,
+        upload=upload,
+        upload_method="login session",
+        upload_state=load_state(None),
+    )
+    assert uploads == ["rMythic"]
+    assert heroic.report_url and heroic.uploaded_via is None and heroic.error is None
+    assert mythic.uploaded_via == "login session"
+
+
+def test_upload_difficulties_config(tmp_path):
+    cfg = tmp_path / "w.toml"
+    base = '[[characters]]\nname = "A"\nrealm = "b"\n'
+    cfg.write_text('upload_difficulties = "Mythic"\n' + base)
+    assert Config.load(cfg).upload_difficulties == ("Mythic",)
+    cfg.write_text(base)
+    assert Config.load(cfg).upload_difficulties is None
+    cfg.write_text("upload_difficulties = [1]\n" + base)
+    with pytest.raises(Exception, match="upload_difficulties"):
+        Config.load(cfg)

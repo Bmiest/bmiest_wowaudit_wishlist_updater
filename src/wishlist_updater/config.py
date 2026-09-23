@@ -80,6 +80,9 @@ class Config:
     raiderio_stale_after_hours: float = 48
     # Re-upload an unchanged report after this many days (QE's numbers move between patches).
     reupload_after_days: float = 7
+    # Which raid difficulties get uploaded to WoWAudit; None = all of qe.raid_difficulty.
+    # The others are still generated for the dashboard (report-only).
+    upload_difficulties: tuple[str, ...] | None = None
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -132,6 +135,7 @@ class Config:
             crest_planner=bool(raw.get("crest_planner", False)),
             raiderio_stale_after_hours=float(raw.get("raiderio_stale_after_hours", 48)),
             reupload_after_days=float(raw.get("reupload_after_days", 7)),
+            upload_difficulties=_parse_upload_difficulties(raw.get("upload_difficulties"), path),
         )
 
 
@@ -154,3 +158,13 @@ def _parse_item_overrides(table: dict) -> dict[str, ItemOverride]:
             crafted_stats=tuple(int(s) for s in entry.get("crafted_stats", ())),
         )
     return overrides
+
+
+def _parse_upload_difficulties(value: object, path: Path) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise ConfigError(f"{path}: upload_difficulties must be a difficulty or a list of them")
+    return tuple(value)
