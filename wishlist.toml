@@ -29,8 +29,9 @@ realm = "ragnaros"
 region = "eu"
 
 # Catalysed tier pieces and crafted items carry stats the gear APIs don't expose.
-# Regenerate after swapping one of these items:
-#   uv run wishlist-updater --extract-overrides my_simc_export.txt
+# Refresh after catalysing a tier piece or equipping a new crafted item: paste an in-game
+# /simc export into the workflow's manual-run form (Actions -> Run workflow -> simc), or run
+#   uv run wishlist-updater --refresh-overrides my_simc_export.txt
 [characters.item_overrides]
 head = { id = 271555, redirected_base_stats = 268242 }
 shoulder = { id = 271553, redirected_base_stats = 239031 }

@@ -60,8 +60,8 @@ Docker works:
 This repository is **public** (for the free dashboard), so it stays on GitHub-hosted runners.
 Don't point `RUNS_ON` at a self-hosted homelab runner while it's public, and keep the workflow
 limited to `schedule` and `workflow_dispatch`. A `pull_request` trigger on a self-hosted runner
-would let anyone's fork run code on your homelab. The publish and save-overrides jobs always run
-on `ubuntu-latest`.
+would let anyone's fork run code on your homelab. The record, save-overrides and deploy jobs
+always run on `ubuntu-latest`.
 
 ## Local usage
 
