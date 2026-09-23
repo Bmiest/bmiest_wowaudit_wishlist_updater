@@ -93,6 +93,20 @@ def fast_polling(monkeypatch):
     monkeypatch.setattr(wowaudit_web, "JOB_POLL_INTERVAL_S", 0)
 
 
+@pytest.fixture(autouse=True)
+def empty_target_cache():
+    wowaudit_web._TARGET_CACHE.clear()
+    yield
+    wowaudit_web._TARGET_CACHE.clear()
+
+
+LOOKUPS = {
+    "/api/user/page_info",
+    "/api/teams/66817",
+    "/api/teams/66817/droptimizer_configurations",
+}
+
+
 async def upload(api):
     await upload_report_via_web(
         SimpleNamespace(request=api), REPORT_URL, team_url=TEAM_URL, character_name="Shiftheal"
@@ -113,6 +127,32 @@ async def test_upload_replays_wowaudits_go_button_and_verifies():
     assert all("X-CSRF-Token" not in call.headers for call in api.calls if call.method == "GET")
     assert [call.path for call in api.calls].count("/api/jobs/job-1") == 2
     assert api.calls[-1].path == f"{WISHLIST_PATH}?season_id=18"
+
+
+async def test_second_upload_reuses_the_resolved_target():
+    api = FakeAPI(happy_routes())
+    await upload(api)  # e.g. the Heroic report
+    first = len(api.calls)
+    await upload(api)  # then the Mythic one, in the same run
+    second = [call.path for call in api.calls[first:]]
+    assert not LOOKUPS & set(second)
+    # The CSRF page (which also catches a logged-out session), PUT, job and read-back still happen.
+    assert second[0].endswith("/loot/characters")
+    assert [call.method for call in api.calls[first:]].count("PUT") == 1
+    assert second[-1] == f"{WISHLIST_PATH}?season_id=18"
+
+
+async def test_failed_upload_forgets_the_resolved_target():
+    routes = happy_routes()
+    routes[("GET", "/api/jobs/job-1")] = FakeResponse(body=fixture("job_failed.json"))
+    api = FakeAPI(routes)
+    with pytest.raises(WowAuditWebError):
+        await upload(api)
+    assert not wowaudit_web._TARGET_CACHE
+    routes[("GET", "/api/jobs/job-1")] = FakeResponse(body=fixture("job_completed.json"))
+    first = len(api.calls)
+    await upload(api)
+    assert {call.path for call in api.calls[first:]} >= LOOKUPS
 
 
 async def test_upload_warns_when_wowaudit_copies_to_other_teams(caplog):

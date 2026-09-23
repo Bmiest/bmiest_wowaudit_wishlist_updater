@@ -29,7 +29,8 @@ RELOGIN_HINT = "Run `wishlist-updater --wowaudit-login` again to refresh the WoW
 
 REQUEST_TIMEOUT_MS = 30_000
 JOB_TIMEOUT_S = 180.0
-JOB_POLL_INTERVAL_S = 1.0  # what WoWAudit's own frontend uses
+# WoWAudit's own frontend polls every second; WoWAudit asked us for fewer requests.
+JOB_POLL_INTERVAL_S = 3.0
 # WoWAudit's upload form has "replace manual edits" ticked by default.
 REPLACE_MANUAL_EDITS = True
 
@@ -42,6 +43,10 @@ _QE_REPORT_URL = re.compile(
 )
 _PENDING_JOB_STATES = frozenset({"queued", "working"})
 _FAILED_JOB_STATES = frozenset({"failed", "interrupted"})
+
+# Resolved targets for this process. A run uploads Heroic and then Mythic for the same character,
+# so the second upload skips looking up the team, character and configuration again. IDs only.
+_TARGET_CACHE: dict[tuple[str, str], UploadTarget] = {}
 
 
 class WowAuditWebError(RuntimeError):
@@ -188,9 +193,16 @@ async def upload_report_via_web(
     api = context.request
     step = "looking up the team and character"
     csrf_token = None
+    cache_key = (_normalize_url(team_url), character_name.casefold())
     try:
-        target = await resolve_upload_target(api, team_url=team_url, character_name=character_name)
+        target = _TARGET_CACHE.get(cache_key)
+        if target is None:
+            target = await resolve_upload_target(
+                api, team_url=team_url, character_name=character_name
+            )
+            _TARGET_CACHE[cache_key] = target
 
+        # This page also catches a logged-out session when the target came from the cache.
         step = "getting a CSRF token"
         page = await _request(api, "GET", _team_path(team_url) + "/loot/characters", text=True)
         if "Log in to continue" in page:
@@ -225,8 +237,10 @@ async def upload_report_via_web(
                 f"from report {report_id}"
             )
     except WowAuditWebError as exc:
+        _TARGET_CACHE.pop(cache_key, None)
         raise type(exc)(f"WoWAudit upload failed while {step}: {exc}") from None
     except (PlaywrightError, ValueError, KeyError, TypeError) as exc:
+        _TARGET_CACHE.pop(cache_key, None)
         # Playwright's call logs can list request headers, so keep only the first part of the
         # message and never chain the original exception into tracebacks.
         detail = _redact(str(exc).split("Call log:")[0].strip(), csrf_token)
