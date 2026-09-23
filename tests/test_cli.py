@@ -1,3 +1,5 @@
+from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -272,3 +274,24 @@ def test_raid_difficulties():
     assert cli.raid_difficulties({}) == ["Mythic"]
     assert cli.raid_difficulties({"raid_difficulty": "Heroic"}) == ["Heroic"]
     assert cli.raid_difficulties({"raid_difficulty": ["Heroic", "Mythic"]}) == ["Heroic", "Mythic"]
+
+
+def test_staleness_warning():
+    now = datetime(2026, 9, 23, 6, 0, tzinfo=UTC)
+    assert cli.staleness_warning(None, 48, now) is None
+    assert cli.staleness_warning("garbage", 48, now) is None
+    assert cli.staleness_warning("2026-09-22T12:00:00.000Z", 48, now) is None
+    warning = cli.staleness_warning("2026-09-20T23:00:18.000Z", 48, now)
+    assert warning and "2.3 days ago" in warning and "/simc" in warning
+
+
+async def test_gear_as_of_flows_from_raiderio_and_triggers_warning(uploads, monkeypatch):
+    async def fake_raiderio(character, *, api_key=None):
+        profile = cli.parse_simc_text(ADDON_SIMC)
+        return replace(profile, gear_as_of="2020-01-01T00:00:00.000Z")
+
+    monkeypatch.setattr(cli, "fetch_simc_from_raiderio", fake_raiderio)
+    outcome = await _process(simc=None)
+    assert outcome.gear_as_of == "2020-01-01T00:00:00.000Z"
+    assert any("Raider.io last read this character" in w for w in outcome.warnings)
+    assert outcome.uploaded_via  # stale gear warns, it doesn't block the run

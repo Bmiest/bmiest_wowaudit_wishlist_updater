@@ -164,6 +164,7 @@ def build_summary(
                     "realm": o.character.realm,
                     "region": o.character.region,
                     **_class_and_spec(o.simc),
+                    "gear_as_of": o.gear_as_of,
                     "gear": parse_gear(o.simc) if o.simc else [],
                     "warnings": [],
                     "skipped": o.skipped,

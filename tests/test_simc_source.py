@@ -351,3 +351,7 @@ def test_item_lines_start_at_or_after_line_8(source, drop_talents, blizzard_json
     first_item = next(i for i, line in enumerate(lines) if "=,id=" in line)
     assert first_item >= 8
     assert any(line.startswith("priest=") for line in lines[:8])
+
+
+def test_raiderio_profile_carries_crawl_time():
+    assert _raiderio_profile().gear_as_of == RAIDERIO_JSON["last_crawled_at"]

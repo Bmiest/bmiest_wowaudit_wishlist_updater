@@ -363,6 +363,7 @@ a:hover { text-decoration-color: var(--jade); }
 .pd-id__spec { font-size: 13px; color: var(--paper-dim); }
 .pd-id__ilvl { margin-top: 8px; font-size: 13px; color: var(--ink-300); }
 .pd-id__ilvl-note { color: var(--ink-500); }
+.pd-id__asof { margin-top: 2px; font-size: 12px; color: var(--ink-400); }
 .pd-weapons { grid-area: weapons; display: flex; flex-direction: column; }
 
 .pd-slot {

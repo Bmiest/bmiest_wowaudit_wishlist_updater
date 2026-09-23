@@ -1100,6 +1100,15 @@ function renderPaperdoll(character) {
     ilvlLine.appendChild(h("span", { className: "pd-id__ilvl-note", text: ` (${count}/${total} slots)` }));
   }
   idBlock.appendChild(ilvlLine);
+  // When the gear source last read the character (Raider.io's crawl time). Older runs lack it.
+  if (typeof character.gear_as_of === "string" && character.gear_as_of) {
+    const asOf = h("div", {
+      className: "pd-id__asof",
+      text: `Raider.io read ${relativeTime(character.gear_as_of)}`,
+    });
+    asOf.setAttribute("title", absoluteTime(character.gear_as_of));
+    idBlock.appendChild(asOf);
+  }
 
   const leftCol = h(
     "div",

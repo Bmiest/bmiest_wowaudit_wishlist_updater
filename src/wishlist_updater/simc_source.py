@@ -126,6 +126,7 @@ class SimcProfile:
     name: str
     class_token: str
     spec_token: str
+    gear_as_of: str | None = None  # ISO time the source last read the gear (Raider.io crawl)
 
 
 def _class_token(class_name: str) -> str:
@@ -230,6 +231,7 @@ def _render(
     gear: dict[str, _GearItem],
     source: str,
     now: datetime,
+    gear_as_of: str | None = None,
 ) -> SimcProfile:
     class_token = _class_token(class_name)
     spec_token = _spec_token(spec_name)
@@ -258,7 +260,11 @@ def _render(
             lines.extend(_item_lines(gear[slot]))
 
     return SimcProfile(
-        text="\n".join(lines) + "\n", name=name, class_token=class_token, spec_token=spec_token
+        text="\n".join(lines) + "\n",
+        name=name,
+        class_token=class_token,
+        spec_token=spec_token,
+        gear_as_of=gear_as_of,
     )
 
 
@@ -321,6 +327,7 @@ def build_simc_from_raiderio(
         gear=gear,
         source="Raider.io",
         now=now,
+        gear_as_of=profile.get("last_crawled_at"),
     )
 
 

@@ -76,6 +76,8 @@ class Config:
     simc_source: str = "raiderio"
     wowaudit_team_url: str | None = None
     crest_planner: bool = False
+    # Warn when Raider.io last crawled the character longer ago than this.
+    raiderio_stale_after_hours: float = 48
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -126,6 +128,7 @@ class Config:
             simc_source=simc_source,
             wowaudit_team_url=team_url,
             crest_planner=bool(raw.get("crest_planner", False)),
+            raiderio_stale_after_hours=float(raw.get("raiderio_stale_after_hours", 48)),
         )
 
 

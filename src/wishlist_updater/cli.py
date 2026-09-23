@@ -43,6 +43,7 @@ class Outcome:
     error: str | None = None
     warnings: list[str] = field(default_factory=list)
     simc: str | None = None  # the SimC string QE was given (for the run summary/dashboard)
+    gear_as_of: str | None = None  # when the gear source last read the character
 
     @property
     def label(self) -> str:
@@ -120,6 +121,25 @@ async def get_simc(
     return await fetch_simc_from_raiderio(character, api_key=secrets.raiderio_api_key)
 
 
+def staleness_warning(
+    gear_as_of: str | None, max_age_hours: float, now: datetime | None = None
+) -> str | None:
+    """A warning when the gear source's data is older than max_age_hours."""
+    if not gear_as_of:
+        return None
+    try:
+        seen = datetime.fromisoformat(gear_as_of.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    age_h = ((now or datetime.now(UTC)) - seen).total_seconds() / 3600
+    if age_h <= max_age_hours:
+        return None
+    return (
+        f"Raider.io last read this character {age_h / 24:.1f} days ago, so recent gear "
+        "changes may be missing. Paste a /simc export for an up-to-date run."
+    )
+
+
 def raid_difficulties(qe_settings: dict[str, object]) -> list[str]:
     """wishlist.toml may list several; QE runs one per report, in the listed order."""
     value = qe_settings.get("raid_difficulty", "Mythic")
@@ -147,6 +167,10 @@ async def process_character(
         for warning in base.warnings:
             log.warning("%s: %s", character.label, warning)
         base.simc = profile.text
+        base.gear_as_of = profile.gear_as_of
+        if stale := staleness_warning(profile.gear_as_of, config.raiderio_stale_after_hours):
+            base.warnings.append(stale)
+            log.warning("%s: %s", character.label, stale)
         if (profile.class_token, profile.spec_token) not in HEALER_SPECS:
             base.skipped = (
                 f"{profile.spec_token} {profile.class_token} is not a healer spec "
