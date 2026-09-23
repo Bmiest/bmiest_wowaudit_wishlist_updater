@@ -47,8 +47,9 @@ upload wins, and the Mythic numbers are the ones the guild wants. The current se
 
 The workflow (`.github/workflows/update-wishlists.yml`) runs every day, starting at a random time
 between 06:00 and 09:00 UTC, and you can also start it by hand from the Actions tab. It only
-uploads to WoWAudit when a report's inputs changed (gear, talents or QE settings) or the last
-upload is a week old, because WoWAudit asked for a low number of uploads. A pasted `/simc`
+uploads to WoWAudit when a report's inputs changed (gear, talents or QE settings) or when the
+last upload is older than `reupload_after_days` (1.75 days, because WoWAudit drops wishes after
+about 3 days). WoWAudit asked for a low number of uploads, so unchanged reports aren't re-uploaded daily. A pasted `/simc`
 export or the `force_upload` option always uploads. A manual run can take a raw `/simc` export instead of
 using Raider.io, and that export includes your bags and currencies.
 

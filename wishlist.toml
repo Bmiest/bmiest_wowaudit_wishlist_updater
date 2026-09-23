@@ -10,6 +10,11 @@ simc_source = "raiderio"
 # estimates what spending crests on each equipped item would gain.
 crest_planner = true
 
+# Unchanged reports are re-uploaded after this many days, because WoWAudit drops wishes
+# after ~3 days. 1.75 (not 2): with the random 06:00-09:00 start, the run two days later
+# can land just under 48 h after the last upload, and must still re-upload.
+reupload_after_days = 1.75
+
 # Team page used for keyless imports with your own login session (WOWAUDIT_SESSION).
 wowaudit_team_url = "https://wowaudit.com/guild/eu/draenor/kelderklasse/teams/main"
 
