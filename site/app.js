@@ -78,6 +78,16 @@ function isGithubUrl(url) {
   return safePrefixedUrl(url, "https://github.com/");
 }
 
+/** The character's Raider.io profile, built from validated parts, never taken from the data. */
+function raiderioProfileUrl(character) {
+  const region = String(character.region || "").toLowerCase();
+  const realm = String(character.realm || "").toLowerCase();
+  const name = String(character.name || "");
+  if (!/^(us|eu|kr|tw|cn)$/.test(region) || !/^[a-z0-9-]+$/.test(realm)) return null;
+  if (!/^\p{L}{2,12}$/u.test(name)) return null;
+  return `https://raider.io/characters/${region}/${realm}/${encodeURIComponent(name)}`;
+}
+
 /** Build a Wowhead item URL ourselves from validated integer ids -- never
  * from a raw string handed over by the data file. */
 function wowheadItemUrl(itemId, bonusIds, ilvl) {
@@ -1101,6 +1111,8 @@ function renderPaperdoll(character) {
   }
   idBlock.appendChild(ilvlLine);
   // When the gear source last read the character (Raider.io's crawl time). Older runs lack it.
+  const profileUrl = raiderioProfileUrl(character);
+  document.getElementById("gearSourceLink").setAttribute("href", profileUrl || "https://raider.io");
   if (typeof character.gear_as_of === "string" && character.gear_as_of) {
     const asOf = h("div", {
       className: "pd-id__asof",
@@ -1108,6 +1120,13 @@ function renderPaperdoll(character) {
     });
     asOf.setAttribute("title", absoluteTime(character.gear_as_of));
     idBlock.appendChild(asOf);
+  }
+  // Raider.io's update button is meant for people; this pipeline never presses it (their API
+  // terms forbid automating unpublished endpoints), so offer it as a manual link.
+  if (profileUrl) {
+    idBlock.appendChild(
+      linkOrText(profileUrl, "Update on Raider.io ↗", { className: "pill pill--link pill--sm pd-id__update" })
+    );
   }
 
   const leftCol = h(
