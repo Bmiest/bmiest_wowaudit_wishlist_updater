@@ -1,9 +1,9 @@
-// WoWAudit wishlist updater -- public run dashboard ("command center" layout).
+// Gear upgrade reports -- public run dashboard ("command center" layout).
 //
 // Vanilla JS, no build step. Everything is rendered with
 // document.createElement()/textContent -- never innerHTML -- because the
 // data this page reads (data/*.json) is produced by an automation pipeline
-// that relays error strings from external services (WoWAudit, QE Live).
+// that relays error strings from the external services it talks to.
 // Those strings are untrusted and must always end up as literal text, never
 // as markup.
 //
@@ -294,16 +294,16 @@ function difficultyChecks(reports) {
     if (!r) continue;
     const letter = diff.charAt(0);
     let state = "muted";
-    let symbol = "–"; // – not imported / report-only
-    let title = `${diff}: not imported`;
+    let symbol = "–"; // no report this run
+    let title = `${diff}: no report`;
     if (r.error) {
       state = "fail";
-      symbol = "✗"; // ✗
+      symbol = "✗";
       title = `${diff}: error`;
-    } else if (r.uploaded_via) {
+    } else if (r.report_id || isReportUrl(r.report_url)) {
       state = "ok";
-      symbol = "✓"; // ✓
-      title = `${diff}: imported`;
+      symbol = "✓";
+      title = `${diff}: report generated`;
     }
     out.push({ letter, symbol, state, title, url: isReportUrl(r.report_url) });
   }
@@ -875,19 +875,9 @@ function reportPanelContent(report, key) {
   const url = isReportUrl(report.report_url);
   headRow.appendChild(linkOrText(url, "Open report ↗", { className: "report-card__link" }));
 
-  let statusPill;
   if (report.error) {
-    statusPill = h("span", { className: "pill pill--fail", text: "Error" });
-  } else if (report.uploaded_via) {
-    statusPill = h("span", {
-      className: "pill pill--ok",
-      text: "Imported to WoWAudit",
-      attrs: { title: `Imported with the ${report.uploaded_via}` },
-    });
-  } else {
-    statusPill = h("span", { className: "pill pill--muted", text: "Not imported" });
+    headRow.appendChild(h("span", { className: "pill pill--fail", text: "Error" }));
   }
-  headRow.appendChild(statusPill);
   frag.appendChild(headRow);
 
   if (report.error) {
