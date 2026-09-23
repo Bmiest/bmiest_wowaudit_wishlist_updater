@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://wow.zamimg.com; style-src 'self' https://fonts.googleapis.com https://wow.zamimg.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' https://wow.zamimg.com data:; connect-src 'self' https://nether.wowhead.com; base-uri 'none'; form-action 'none';">
-<title>Wishlist automation for WoWAudit</title>
-<meta name="description" content="Run history, QE Live upgrade reports and equipped gear from the WoWAudit wishlist automation.">
+<title>Gear upgrade reports for WoW</title>
+<meta name="description" content="Daily QE Live upgrade reports, crest planner and equipped gear for Shiftheal.">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -28,8 +28,8 @@
     <!-- This h1's textContent is the single source of truth for the page
          title: app.js copies it into document.title at init, and the
          static <title> above holds the same text as the no-JS fallback. -->
-    <h1 id="pageTitle">Wishlist automation for WoWAudit</h1>
-    <p class="lead">QE Live upgrade reports for Shiftheal, generated every day at 06:00 UTC and imported into the Kelderklasse WoWAudit wishlist.</p>
+    <h1 id="pageTitle">Gear upgrade reports for WoW</h1>
+    <p class="lead">Daily QE Live upgrade reports for Shiftheal: what to wish for in raid and M+, and where to spend crests.</p>
 
     <div id="headerCapsules" class="capsule-row"></div>
     <div class="status-line">
@@ -83,7 +83,6 @@
       <ol class="how-it-works__list">
         <li>Gear comes from Raider.io, plus the catalyst and crafted stats it can't see, which are stored in the repo. Manual runs can use a pasted /simc export instead.</li>
         <li>QE Live's Upgrade Finder runs in a headless browser, first for Heroic and then for Mythic. No sockets are added, and your equipped gear counts at max upgrade.</li>
-        <li>Both reports are imported into the Kelderklasse WoWAudit wishlist.</li>
         <li>This page is republished after every run.</li>
       </ol>
     </details>
