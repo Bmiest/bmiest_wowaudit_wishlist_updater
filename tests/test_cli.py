@@ -209,7 +209,9 @@ async def test_upload_failure_is_an_error_with_report_link_kept(uploads):
     )
     assert outcome.report_url == REPORT_URL
     assert outcome.uploaded_via is None
-    assert "--wowaudit-login" in outcome.error
+    # Upload failures stay private (run log / step summary), never the public error field.
+    assert outcome.error is None
+    assert "--wowaudit-login" in outcome.upload_error
 
 
 async def test_heroic_then_mythic_two_reports_two_uploads_in_order(monkeypatch):

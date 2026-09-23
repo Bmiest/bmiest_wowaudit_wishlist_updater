@@ -78,19 +78,15 @@ jobs:
       - name: Install
         run: uv sync --locked --no-dev
 
-      - name: Fetch last upload state
-        # data/upload-state.json on dashboard-data says what was last uploaded, so an unchanged
-        # report isn't uploaded again (WoWAudit asked for fewer uploads). Missing = upload.
-        run: |
-          set -euo pipefail
-          if git ls-remote --exit-code origin refs/heads/dashboard-data >/dev/null 2>&1 \
-            && git fetch -q --depth=1 origin refs/heads/dashboard-data \
-            && git show FETCH_HEAD:data/upload-state.json > "$RUNNER_TEMP/upload-state.json" 2>/dev/null; then
-            echo "Loaded the previous upload state"
-          else
-            rm -f "$RUNNER_TEMP/upload-state.json"
-            echo "No previous upload state; reports will be uploaded"
-          fi
+      # What was last uploaded, so an unchanged report isn't uploaded again (WoWAudit asked
+      # for fewer uploads). Kept in the Actions cache: private, unlike the dashboard data.
+      # A missing or evicted cache just means the next reports get uploaded.
+      - name: Restore upload state
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/upload-state
+          key: upload-state-${{ github.run_id }}
+          restore-keys: upload-state-
 
       - name: Update wishlists
         env:
@@ -114,12 +110,28 @@ jobs:
           if [ -n "${INPUT_CHARACTER:-}" ]; then args+=(--character "$INPUT_CHARACTER"); fi
           if [ "${INPUT_DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
           if [ "${INPUT_FORCE_UPLOAD:-false}" = "true" ]; then args+=(--force-upload); fi
-          if [ -f "$RUNNER_TEMP/upload-state.json" ]; then args+=(--upload-state "$RUNNER_TEMP/upload-state.json"); fi
+          args+=(--upload-state "$RUNNER_TEMP/upload-state/upload-state.json")
           if [ -n "${INPUT_SIMC:-}" ]; then
             printf '%s\n' "$INPUT_SIMC" > "$RUNNER_TEMP/simc.txt"
             args+=(--simc-file "$RUNNER_TEMP/simc.txt")
           fi
           uv run --no-sync wishlist-updater --summary-json "$RUNNER_TEMP/summary.json" "${args[@]}"
+
+      # hashFiles() only sees the workspace, so check the temp file explicitly.
+      - name: Check upload state
+        id: upload-state
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/upload-state/upload-state.json" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save upload state
+        if: ${{ !cancelled() && steps.upload-state.outputs.exists == 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/upload-state
+          key: upload-state-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Upload run summary
         if: ${{ !cancelled() }}

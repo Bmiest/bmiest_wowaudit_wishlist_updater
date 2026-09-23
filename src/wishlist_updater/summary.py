@@ -1,5 +1,8 @@
 """Machine-readable run summary, published to the GitHub Pages dashboard.
 
+Nothing about WoWAudit uploads goes in here (the user wants the public page silent about
+them): no upload method/status fields and no upload errors, which stay in the run log.
+
 Everything in here ends up on a public website, so it only carries data that's public
 anyway: equipped gear (Armory / Raider.io), QE report links and their results (QE's public
 API) and run status. Never the WoWAudit session, wishlist contents or raw /simc exports
@@ -137,7 +140,6 @@ def build_summary(
     outcomes: list[Outcome],
     *,
     started_at: datetime,
-    upload_method: str | None,
     fetch_results: bool = True,
 ) -> dict:
     run_id = os.environ.get("GITHUB_RUN_ID")
@@ -199,9 +201,6 @@ def build_summary(
                     "difficulty": o.difficulty,
                     "report_id": report_id,
                     "report_url": o.report_url,
-                    "uploaded_via": o.uploaded_via,
-                    "upload_skipped": o.upload_skipped,
-                    "last_uploaded_at": o.last_uploaded_at,
                     "error": o.error,
                     "results": slim_results(report(client, report_id)),
                 }
@@ -215,7 +214,6 @@ def build_summary(
             "commit": os.environ.get("GITHUB_SHA"),
             "started_at": started_at.isoformat(timespec="seconds"),
             "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
-            "upload_method": upload_method,
             "ok": not any(o.error for o in outcomes),
         },
         "characters": list(characters.values()),

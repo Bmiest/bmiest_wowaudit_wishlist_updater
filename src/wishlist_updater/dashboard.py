@@ -34,24 +34,36 @@ def run_header(summary: dict) -> dict:
                 "skipped": c.get("skipped"),
                 "warnings": c.get("warnings", []),
                 "reports": [
-                    {
-                        k: r.get(k)
-                        for k in (
-                            "difficulty",
-                            "report_id",
-                            "report_url",
-                            "uploaded_via",
-                            "upload_skipped",
-                            "last_uploaded_at",
-                            "error",
-                        )
-                    }
+                    {k: r.get(k) for k in ("difficulty", "report_id", "report_url", "error")}
                     for r in c.get("reports", [])
                 ],
             }
             for c in summary.get("characters", [])
         ],
     }
+
+
+# Fields older runs published about WoWAudit uploads. The public site stays silent about
+# uploads, so they're scrubbed from stored runs whenever the history is rebuilt.
+_LEGACY_RUN_KEYS = ("upload_method",)
+_LEGACY_REPORT_KEYS = ("uploaded_via", "upload_skipped", "last_uploaded_at")
+
+
+def scrub(summary: dict) -> bool:
+    """Remove upload fields in place. Returns True if anything was removed."""
+    changed = False
+    run = summary.get("run", {})
+    for key in _LEGACY_RUN_KEYS:
+        if key in run:
+            del run[key]
+            changed = True
+    for c in summary.get("characters", []):
+        for r in c.get("reports", []):
+            for key in _LEGACY_REPORT_KEYS:
+                if key in r:
+                    del r[key]
+                    changed = True
+    return changed
 
 
 def _load(path: Path) -> dict | None:
@@ -69,16 +81,19 @@ def _write(path: Path, data: dict) -> None:
 def publish(summary: dict | None, data_dir: Path, keep: int = KEEP_RUNS) -> list[dict]:
     """Add `summary` (if any) to data_dir and rebuild index.json/latest.json. Returns the index."""
     runs_dir = data_dir / "runs"
-    if summary is not None and "upload_state" in summary:
-        summary = dict(summary)
-        _write(data_dir / "upload-state.json", summary.pop("upload_state"))
+    # The upload state is never public: it lives in the Actions cache.
+    (data_dir / "upload-state.json").unlink(missing_ok=True)
     if summary is not None:
+        scrub(summary)
         run_id = str(summary["run"].get("id") or "")
         if not _RUN_ID_RE.match(run_id):
             raise ValueError(f"Refusing to publish a summary with run id {run_id!r}")
         _write(runs_dir / f"{run_id}.json", summary)
 
     runs = [(p, s) for p in runs_dir.glob("*.json") if (s := _load(p)) and "run" in s]
+    for path, s in runs:
+        if scrub(s):
+            _write(path, s)
     runs.sort(key=lambda ps: ps[1]["run"].get("started_at") or "", reverse=True)
     for path, _ in runs[keep:]:
         path.unlink()

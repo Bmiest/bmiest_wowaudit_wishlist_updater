@@ -119,10 +119,31 @@ async def test_force_and_pasted_simc_always_upload(monkeypatch):
     assert len(uploads) == 6
 
 
-def test_publish_persists_upload_state_outside_the_run_file(tmp_path):
+def test_publish_scrubs_upload_fields_and_never_publishes_state(tmp_path):
     sample = json.loads((FIXTURES / "dashboard" / "run_sample.json").read_text())
+    legacy = json.loads(json.dumps(sample))
+    legacy["run"].update(
+        id="8", started_at="2026-09-23T07:00:00+00:00", upload_method="login session"
+    )
+    for r in legacy["characters"][0]["reports"]:
+        r.update(uploaded_via="login session", upload_skipped=None, last_uploaded_at=None)
+    (tmp_path / "runs").mkdir(parents=True)
+    (tmp_path / "runs" / "8.json").write_text(json.dumps(legacy))
+    (tmp_path / "upload-state.json").write_text("{}")  # from an older version
+
     sample["run"].update(id="9", started_at="2026-09-24T07:00:00+00:00")
-    sample["upload_state"] = {"schema": 1, "characters": {"k": {"Mythic": {"fingerprint": "f"}}}}
     publish(sample, tmp_path)
-    assert json.loads((tmp_path / "upload-state.json").read_text())["characters"]["k"]
-    assert "upload_state" not in json.loads((tmp_path / "runs" / "9.json").read_text())
+
+    assert not (tmp_path / "upload-state.json").exists()
+    for name in ("runs/8.json", "runs/9.json", "index.json", "latest.json"):
+        text = (tmp_path / name).read_text()
+        for key in ("uploaded_via", "upload_skipped", "last_uploaded_at", "upload_method"):
+            assert key not in text, (name, key)
+
+
+def test_save_upload_state_round_trips(tmp_path):
+    state = load_state(None)
+    record_upload(state, "k", "Mythic", "fp", "rid", now=NOW)
+    path = tmp_path / "cache" / "upload-state.json"
+    cli.save_upload_state(path, state)
+    assert load_state(path) == state

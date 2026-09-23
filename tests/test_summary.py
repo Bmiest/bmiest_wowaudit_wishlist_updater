@@ -51,7 +51,6 @@ def test_build_summary_is_public_safe_and_grouped(monkeypatch):
     s = build_summary(
         outcomes,
         started_at=datetime(2026, 9, 22, tzinfo=UTC),
-        upload_method="login session",
         fetch_results=False,
     )
     assert s["run"]["url"] == "https://github.com/o/r/actions/runs/42"
@@ -145,7 +144,6 @@ def test_crest_planner_outcome_is_report_only_and_separate(monkeypatch):
     s = build_summary(
         outcomes,
         started_at=datetime(2026, 9, 22, tzinfo=UTC),
-        upload_method="API key",
         fetch_results=False,
     )
     [char] = s["characters"]

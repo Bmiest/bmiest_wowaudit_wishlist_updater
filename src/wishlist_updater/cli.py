@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -53,6 +54,9 @@ class Outcome:
     gear_as_of: str | None = None  # when the gear source last read the character
     upload_skipped: str | None = None  # why an unchanged report wasn't re-uploaded
     last_uploaded_at: str | None = None
+    # Upload failures are kept apart from `error`: they fail the run (and show in the GitHub
+    # step summary) but never reach the public dashboard data.
+    upload_error: str | None = None
 
     @property
     def label(self) -> str:
@@ -98,7 +102,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--upload-state",
         type=Path,
         metavar="PATH",
-        help="Previous upload state (data/upload-state.json); unchanged reports are skipped.",
+        help="Upload state file (read, then updated in place); unchanged reports are skipped.",
     )
     p.add_argument(
         "--force-upload",
@@ -235,7 +239,12 @@ async def process_character(
                     outcome.last_uploaded_at = last_uploaded_at(upload_state, state_key, difficulty)
                     log.info("%s: not re-uploaded: %s", outcome.label, reason)
                     continue
-            await upload(outcome.report_url, profile.name)
+            try:
+                await upload(outcome.report_url, profile.name)
+            except Exception as exc:
+                log.exception("%s: upload failed", outcome.label)
+                outcome.upload_error = f"{type(exc).__name__}: {exc}"
+                continue
             outcome.uploaded_via = upload_method
             log.info("%s: imported into WoWAudit (%s)", outcome.label, upload_method)
             if upload_state is not None:
@@ -342,13 +351,21 @@ def choose_upload(
     return None, None
 
 
+def save_upload_state(path: Path, state: dict) -> None:
+    """Private: the workflow keeps this file in the Actions cache, never on the public site."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=1) + "\n", encoding="utf-8")
+
+
 def write_step_summary(outcomes: list[Outcome]) -> None:
     path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not path:
         return
     rows = ["| Character | Result | Report |", "|---|---|---|"]
     for o in outcomes:
-        if o.kind == "crest":
+        if o.upload_error:
+            result = f"❌ upload failed: {o.upload_error}"
+        elif o.kind == "crest":
             result = "🪙 crest estimates (not uploaded)"
         elif o.upload_skipped:
             result = f"⏭️ unchanged, last imported {o.last_uploaded_at or 'earlier'}"
@@ -409,22 +426,23 @@ async def run(args: argparse.Namespace) -> int:
     if args.summary_json:
         from wishlist_updater.summary import build_summary, write_summary
 
-        summary = build_summary(outcomes, started_at=started_at, upload_method=upload_method)
-        if upload_state is not None:
-            summary["upload_state"] = upload_state  # persisted by the record job
-        write_summary(summary, args.summary_json)
+        write_summary(build_summary(outcomes, started_at=started_at), args.summary_json)
     for o in outcomes:
         status = (
             o.error
             or o.skipped
             or (f"imported via {o.uploaded_via}" if o.uploaded_via else "report only")
         )
-        if o.kind == "crest":
+        if o.upload_error:
+            status = f"upload failed: {o.upload_error}"
+        elif o.kind == "crest":
             status = "crest estimates (not uploaded)"
         elif o.upload_skipped:
             status = f"unchanged, not re-uploaded (last import {o.last_uploaded_at})"
         print(f"{o.label}: {status} {o.report_url or ''}".rstrip())
-    return 1 if any(o.error for o in outcomes) else 0
+    if upload_state is not None and args.upload_state:
+        save_upload_state(args.upload_state, upload_state)
+    return 1 if any(o.error or o.upload_error for o in outcomes) else 0
 
 
 def refresh_overrides(config_path: Path, simc_path: Path) -> int:
