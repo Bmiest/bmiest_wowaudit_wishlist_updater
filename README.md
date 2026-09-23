@@ -45,8 +45,11 @@ upload wins, and the Mythic numbers are the ones the guild wants. The current se
 
 ### 3. Runner
 
-The workflow (`.github/workflows/update-wishlists.yml`) runs every day at 06:00 UTC, and you can
-also start it by hand from the Actions tab. A manual run can take a raw `/simc` export instead of
+The workflow (`.github/workflows/update-wishlists.yml`) runs every day, starting at a random time
+between 06:00 and 09:00 UTC, and you can also start it by hand from the Actions tab. It only
+uploads to WoWAudit when a report's inputs changed (gear, talents or QE settings) or the last
+upload is a week old, because WoWAudit asked for a low number of uploads. A pasted `/simc`
+export or the `force_upload` option always uploads. A manual run can take a raw `/simc` export instead of
 using Raider.io, and that export includes your bags and currencies.
 
 The job runs inside the `mcr.microsoft.com/playwright/python` container, so any runner with

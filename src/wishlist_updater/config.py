@@ -78,6 +78,8 @@ class Config:
     crest_planner: bool = False
     # Warn when Raider.io last crawled the character longer ago than this.
     raiderio_stale_after_hours: float = 48
+    # Re-upload an unchanged report after this many days (QE's numbers move between patches).
+    reupload_after_days: float = 7
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -129,6 +131,7 @@ class Config:
             wowaudit_team_url=team_url,
             crest_planner=bool(raw.get("crest_planner", False)),
             raiderio_stale_after_hours=float(raw.get("raiderio_stale_after_hours", 48)),
+            reupload_after_days=float(raw.get("reupload_after_days", 7)),
         )
 
 

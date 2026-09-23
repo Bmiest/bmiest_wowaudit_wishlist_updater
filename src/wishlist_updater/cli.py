@@ -21,6 +21,13 @@ from wishlist_updater.simc_source import (
     fetch_simc_from_raiderio,
     parse_simc_text,
 )
+from wishlist_updater.upload_state import (
+    fingerprint,
+    last_uploaded_at,
+    load_state,
+    record_upload,
+    upload_decision,
+)
 from wishlist_updater.wowaudit import upload_report
 from wishlist_updater.wowaudit_session import load_session
 
@@ -44,6 +51,8 @@ class Outcome:
     warnings: list[str] = field(default_factory=list)
     simc: str | None = None  # the SimC string QE was given (for the run summary/dashboard)
     gear_as_of: str | None = None  # when the gear source last read the character
+    upload_skipped: str | None = None  # why an unchanged report wasn't re-uploaded
+    last_uploaded_at: str | None = None
 
     @property
     def label(self) -> str:
@@ -85,6 +94,17 @@ def build_parser() -> argparse.ArgumentParser:
         "export (after catalysing a tier piece or equipping a new crafted item) and exit.",
     )
     p.add_argument("--dry-run", action="store_true", help="Generate reports but skip WoWAudit.")
+    p.add_argument(
+        "--upload-state",
+        type=Path,
+        metavar="PATH",
+        help="Previous upload state (data/upload-state.json); unchanged reports are skipped.",
+    )
+    p.add_argument(
+        "--force-upload",
+        action="store_true",
+        help="Upload even when the report's inputs are unchanged since the last upload.",
+    )
     p.add_argument(
         "--summary-json",
         type=Path,
@@ -155,6 +175,8 @@ async def process_character(
     generate_report: ReportGenerator,
     upload: Uploader | None,
     upload_method: str | None = None,
+    upload_state: dict | None = None,
+    force_upload: bool = False,
 ) -> list[Outcome]:
     """One Outcome per raid difficulty (or a single one if the character fails before QE)."""
     base = Outcome(character)
@@ -184,20 +206,44 @@ async def process_character(
 
     outcomes = []
     # Each difficulty is its own report and upload; one failing must not stop the rest.
+    state_key = f"{character.name}-{character.realm}-{character.region}".lower()
     for difficulty in raid_difficulties(config.qe):
         outcome = replace(base, difficulty=difficulty, warnings=list(base.warnings))
         outcomes.append(outcome)
         try:
+            settings = {**config.qe, "raid_difficulty": difficulty}
             log.info("%s: generating QE Live report", outcome.label)
-            outcome.report_url = await generate_report(
-                profile, {**config.qe, "raid_difficulty": difficulty}
-            )
+            outcome.report_url = await generate_report(profile, settings)
             log.info("%s: report %s", outcome.label, outcome.report_url)
             if upload is None:
                 continue
+            fp = fingerprint(profile.text, settings, difficulty)
+            # WoWAudit allows this automation on the condition that it uploads less: skip
+            # reports whose inputs haven't changed, unless the user asked for this upload.
+            if upload_state is not None and not force_upload and simc_override is None:
+                now = datetime.now(UTC)
+                reason = upload_decision(
+                    upload_state,
+                    state_key,
+                    difficulty,
+                    fp,
+                    now=now,
+                    max_age_days=config.reupload_after_days,
+                )
+                if reason:
+                    outcome.upload_skipped = reason
+                    outcome.last_uploaded_at = last_uploaded_at(upload_state, state_key, difficulty)
+                    log.info("%s: not re-uploaded: %s", outcome.label, reason)
+                    continue
             await upload(outcome.report_url, profile.name)
             outcome.uploaded_via = upload_method
             log.info("%s: imported into WoWAudit (%s)", outcome.label, upload_method)
+            if upload_state is not None:
+                report_id = outcome.report_url.rstrip("/").rsplit("/", 1)[-1]
+                record_upload(
+                    upload_state, state_key, difficulty, fp, report_id, now=datetime.now(UTC)
+                )
+                outcome.last_uploaded_at = last_uploaded_at(upload_state, state_key, difficulty)
         except Exception as exc:
             log.exception("%s: failed", outcome.label)
             outcome.error = f"{type(exc).__name__}: {exc}"
@@ -304,6 +350,8 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
     for o in outcomes:
         if o.kind == "crest":
             result = "🪙 crest estimates (not uploaded)"
+        elif o.upload_skipped:
+            result = f"⏭️ unchanged, last imported {o.last_uploaded_at or 'earlier'}"
         elif o.error:
             result = f"❌ {o.error}"
         elif o.skipped:
@@ -326,6 +374,7 @@ async def run(args: argparse.Namespace) -> int:
     characters = select_characters(config, args.character)
     secrets = Secrets.from_env()
     upload_method, session = choose_upload(args, config, secrets)
+    upload_state = load_state(args.upload_state) if args.upload_state else None
 
     simc_override = None
     if args.simc_file is not None:
@@ -352,16 +401,18 @@ async def run(args: argparse.Namespace) -> int:
                 generate_report=browser.generate,
                 upload=upload,
                 upload_method=upload_method,
+                upload_state=upload_state,
+                force_upload=args.force_upload,
             )
 
     write_step_summary(outcomes)
     if args.summary_json:
         from wishlist_updater.summary import build_summary, write_summary
 
-        write_summary(
-            build_summary(outcomes, started_at=started_at, upload_method=upload_method),
-            args.summary_json,
-        )
+        summary = build_summary(outcomes, started_at=started_at, upload_method=upload_method)
+        if upload_state is not None:
+            summary["upload_state"] = upload_state  # persisted by the record job
+        write_summary(summary, args.summary_json)
     for o in outcomes:
         status = (
             o.error
@@ -370,6 +421,8 @@ async def run(args: argparse.Namespace) -> int:
         )
         if o.kind == "crest":
             status = "crest estimates (not uploaded)"
+        elif o.upload_skipped:
+            status = f"unchanged, not re-uploaded (last import {o.last_uploaded_at})"
         print(f"{o.label}: {status} {o.report_url or ''}".rstrip())
     return 1 if any(o.error for o in outcomes) else 0
 

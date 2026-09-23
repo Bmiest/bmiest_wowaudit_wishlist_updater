@@ -5,7 +5,9 @@ name: Update WoWAudit wishlists
 # execute on the homelab host with access to secrets.
 on:
   schedule:
-    - cron: "0 6 * * *" # daily 06:00 UTC, after most profiles have refreshed
+    # Daily; the jitter job below starts the real work at a random time between
+    # 06:00 and 09:00 UTC, so the requests don't hit the same minute every day.
+    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       character:
@@ -20,16 +22,37 @@ on:
         description: "Generate QE reports but don't import into WoWAudit"
         type: boolean
         default: false
+      force_upload:
+        description: "Upload to WoWAudit even if nothing changed since the last upload"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-concurrency:
-  group: update-wishlists
-  cancel-in-progress: false
+# No workflow-level concurrency: the jitter wait must not hold a lock, or a manual run
+# started during it would queue for hours. The jobs that need exclusivity lock themselves.
 
 jobs:
+  # Scheduled runs only: wait a random 0-180 min (start between 06:00 and 09:00 UTC).
+  jitter:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 190
+    steps:
+      - name: Random start between 06:00 and 09:00 UTC
+        run: |
+          delay=$(( $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % 10800 ))
+          echo "Starting in $(( delay / 60 )) min"
+          sleep "$delay"
+
   update:
+    needs: jitter
+    # Runs after the jitter wait on schedules, and straight away on manual runs.
+    if: ${{ !cancelled() && (needs.jitter.result == 'success' || needs.jitter.result == 'skipped') }}
+    concurrency:
+      group: update-wishlists-update
+      cancel-in-progress: false
     # GitHub-hosted by default. To move to the homelab runner, set the repo variable
     # RUNS_ON to a JSON label list, e.g. ["self-hosted","linux"].
     runs-on: ${{ fromJSON(vars.RUNS_ON || '"ubuntu-latest"') }}
@@ -55,6 +78,20 @@ jobs:
       - name: Install
         run: uv sync --locked --no-dev
 
+      - name: Fetch last upload state
+        # data/upload-state.json on dashboard-data says what was last uploaded, so an unchanged
+        # report isn't uploaded again (WoWAudit asked for fewer uploads). Missing = upload.
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code origin refs/heads/dashboard-data >/dev/null 2>&1 \
+            && git fetch -q --depth=1 origin refs/heads/dashboard-data \
+            && git show FETCH_HEAD:data/upload-state.json > "$RUNNER_TEMP/upload-state.json" 2>/dev/null; then
+            echo "Loaded the previous upload state"
+          else
+            rm -f "$RUNNER_TEMP/upload-state.json"
+            echo "No previous upload state; reports will be uploaded"
+          fi
+
       - name: Update wishlists
         env:
           # WoWAudit import: the team API key if you have one, otherwise your own login
@@ -70,11 +107,14 @@ jobs:
           INPUT_CHARACTER: ${{ inputs.character }}
           INPUT_SIMC: ${{ inputs.simc }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_FORCE_UPLOAD: ${{ inputs.force_upload }}
         run: |
           set -euo pipefail
           args=()
           if [ -n "${INPUT_CHARACTER:-}" ]; then args+=(--character "$INPUT_CHARACTER"); fi
           if [ "${INPUT_DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
+          if [ "${INPUT_FORCE_UPLOAD:-false}" = "true" ]; then args+=(--force-upload); fi
+          if [ -f "$RUNNER_TEMP/upload-state.json" ]; then args+=(--upload-state "$RUNNER_TEMP/upload-state.json"); fi
           if [ -n "${INPUT_SIMC:-}" ]; then
             printf '%s\n' "$INPUT_SIMC" > "$RUNNER_TEMP/simc.txt"
             args+=(--simc-file "$RUNNER_TEMP/simc.txt")
@@ -137,9 +177,12 @@ jobs:
   # completes, so there is exactly one deploy path.
   record:
     needs: update
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.update.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: dashboard-data
+      cancel-in-progress: false
     permissions:
       contents: write # push to the dashboard-data branch
     defaults:

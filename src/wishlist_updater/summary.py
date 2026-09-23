@@ -200,6 +200,8 @@ def build_summary(
                     "report_id": report_id,
                     "report_url": o.report_url,
                     "uploaded_via": o.uploaded_via,
+                    "upload_skipped": o.upload_skipped,
+                    "last_uploaded_at": o.last_uploaded_at,
                     "error": o.error,
                     "results": slim_results(report(client, report_id)),
                 }

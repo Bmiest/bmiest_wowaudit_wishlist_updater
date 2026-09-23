@@ -36,7 +36,15 @@ def run_header(summary: dict) -> dict:
                 "reports": [
                     {
                         k: r.get(k)
-                        for k in ("difficulty", "report_id", "report_url", "uploaded_via", "error")
+                        for k in (
+                            "difficulty",
+                            "report_id",
+                            "report_url",
+                            "uploaded_via",
+                            "upload_skipped",
+                            "last_uploaded_at",
+                            "error",
+                        )
                     }
                     for r in c.get("reports", [])
                 ],
@@ -61,6 +69,9 @@ def _write(path: Path, data: dict) -> None:
 def publish(summary: dict | None, data_dir: Path, keep: int = KEEP_RUNS) -> list[dict]:
     """Add `summary` (if any) to data_dir and rebuild index.json/latest.json. Returns the index."""
     runs_dir = data_dir / "runs"
+    if summary is not None and "upload_state" in summary:
+        summary = dict(summary)
+        _write(data_dir / "upload-state.json", summary.pop("upload_state"))
     if summary is not None:
         run_id = str(summary["run"].get("id") or "")
         if not _RUN_ID_RE.match(run_id):
