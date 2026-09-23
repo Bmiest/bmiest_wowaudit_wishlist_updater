@@ -66,7 +66,7 @@ SHIFTHEAL = Character("Shiftheal", "ragnaros", "eu")
 CONFIG = Config(characters=(SHIFTHEAL,), qe={"raid_difficulty": ["Heroic", "Mythic"]})
 
 
-def _harness(monkeypatch):
+def _harness(monkeypatch, config=CONFIG):
     uploads = []
 
     async def generate(profile, qe_settings):
@@ -83,7 +83,7 @@ def _harness(monkeypatch):
     async def run(state, *, simc=None, force=False):
         return await cli.process_character(
             SHIFTHEAL,
-            config=CONFIG,
+            config=config,
             secrets=Secrets(wowaudit_api_key=None),
             simc_override=simc,
             generate_report=generate,
@@ -149,42 +149,23 @@ def test_save_upload_state_round_trips(tmp_path):
     assert load_state(path) == state
 
 
-async def test_only_listed_difficulties_are_uploaded(monkeypatch):
-    uploads, _ = _harness(monkeypatch)
-
-    async def generate(profile, qe_settings):
-        return "https://questionablyepic.com/live/upgradereport/r" + qe_settings["raid_difficulty"]
-
-    async def upload(url, name):
-        uploads.append(url.rsplit("/", 1)[1])
-
+async def test_only_listed_difficulties_are_uploaded(monkeypatch, tmp_path):
     config = Config(
         characters=(SHIFTHEAL,),
         qe={"raid_difficulty": ["Heroic", "Mythic"]},
         upload_difficulties=("Mythic",),
     )
-    heroic, mythic = await cli.process_character(
-        SHIFTHEAL,
-        config=config,
-        secrets=Secrets(wowaudit_api_key=None),
-        simc_override=None,
-        generate_report=generate,
-        upload=upload,
-        upload_method="login session",
-        upload_state=load_state(None),
-    )
-    assert uploads == ["rMythic"]
-    assert heroic.report_url and heroic.uploaded_via is None and heroic.error is None
-    assert mythic.uploaded_via == "login session"
+    uploads, run = _harness(monkeypatch, config)
+    state = load_state(None)
+    heroic, mythic = await run(state, force=True)
+    assert uploads == ["rMythic"]  # force doesn't upload a dashboard-only difficulty
+    assert heroic.report_url and heroic.dashboard_only and heroic.uploaded_via is None
+    assert heroic.error is None and heroic.upload_error is None
+    assert mythic.uploaded_via == "login session" and not mythic.dashboard_only
+    assert set(state["characters"]["shiftheal-ragnaros-eu"]) == {"Mythic"}  # no Heroic state
 
-
-def test_upload_difficulties_config(tmp_path):
-    cfg = tmp_path / "w.toml"
-    base = '[[characters]]\nname = "A"\nrealm = "b"\n'
-    cfg.write_text('upload_difficulties = "Mythic"\n' + base)
-    assert Config.load(cfg).upload_difficulties == ("Mythic",)
-    cfg.write_text(base)
-    assert Config.load(cfg).upload_difficulties is None
-    cfg.write_text("upload_difficulties = [1]\n" + base)
-    with pytest.raises(Exception, match="upload_difficulties"):
-        Config.load(cfg)
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    cli.write_step_summary([heroic, mythic])
+    text = summary.read_text()
+    assert "dashboard only" in text and "paste the link" not in text

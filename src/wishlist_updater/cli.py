@@ -57,6 +57,7 @@ class Outcome:
     # Upload failures are kept apart from `error`: they fail the run (and show in the GitHub
     # step summary) but never reach the public dashboard data.
     upload_error: str | None = None
+    dashboard_only: bool = False  # difficulty not in upload_difficulties: never uploaded
 
     @property
     def label(self) -> str:
@@ -209,7 +210,8 @@ async def process_character(
         return [base]
 
     outcomes = []
-    # Each difficulty is its own report and upload; one failing must not stop the rest.
+    # Each difficulty is its own report (and upload, if listed in upload_difficulties);
+    # one failing must not stop the rest.
     state_key = f"{character.name}-{character.realm}-{character.region}".lower()
     for difficulty in raid_difficulties(config.qe):
         outcome = replace(base, difficulty=difficulty, warnings=list(base.warnings))
@@ -225,7 +227,8 @@ async def process_character(
                 config.upload_difficulties is not None
                 and difficulty not in config.upload_difficulties
             ):
-                continue  # dashboard-only difficulty
+                outcome.dashboard_only = True
+                continue
             fp = fingerprint(profile.text, settings, difficulty)
             # WoWAudit allows this automation on the condition that it uploads less: skip
             # reports whose inputs haven't changed, unless the user asked for this upload.
@@ -372,6 +375,8 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
             result = f"❌ upload failed: {o.upload_error}"
         elif o.kind == "crest":
             result = "🪙 crest estimates (not uploaded)"
+        elif o.dashboard_only:
+            result = "📊 dashboard only (not in upload_difficulties)"
         elif o.upload_skipped:
             result = f"⏭️ unchanged, last imported {o.last_uploaded_at or 'earlier'}"
         elif o.error:
@@ -442,6 +447,8 @@ async def run(args: argparse.Namespace) -> int:
             status = f"upload failed: {o.upload_error}"
         elif o.kind == "crest":
             status = "crest estimates (not uploaded)"
+        elif o.dashboard_only:
+            status = "dashboard only (not uploaded)"
         elif o.upload_skipped:
             status = f"unchanged, not re-uploaded (last import {o.last_uploaded_at})"
         print(f"{o.label}: {status} {o.report_url or ''}".rstrip())

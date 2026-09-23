@@ -41,7 +41,7 @@ closest thing QE has to Raidbots' "Match Droptimizer Item Levels").
 so every difficulty in the list becomes its own report, in the listed order. `upload_difficulties`
 picks which of them go to WoWAudit; the rest are only shown on the dashboard. Currently all of
 `["Heroic", "Mythic"]` get a report, and only Mythic is uploaded, to keep the number of uploads
-low. If you upload more than one, keep `"Mythic"` last: where two reports overlap (the +10
+low. Uploads follow the order of `raid_difficulty`, so if you upload more than one, keep `"Mythic"` last there: where two reports overlap (the +10
 dungeon items), the last upload wins, and the Mythic numbers are the ones the guild wants.
 
 ### 3. Runner
@@ -51,7 +51,8 @@ between 06:00 and 09:00 UTC, and you can also start it by hand from the Actions 
 uploads to WoWAudit when a report's inputs changed (gear, talents or QE settings) or when the
 last upload is older than `reupload_after_days` (1.75 days, because WoWAudit drops wishes after
 about 3 days). WoWAudit asked for a low number of uploads, so unchanged reports aren't re-uploaded daily. A pasted `/simc`
-export or the `force_upload` option always uploads. A manual run can take a raw `/simc` export instead of
+export or the `force_upload` option always uploads the `upload_difficulties` reports. A manual run
+can take a raw `/simc` export instead of
 using Raider.io, and that export includes your bags and currencies.
 
 The job runs inside the `mcr.microsoft.com/playwright/python` container, so any runner with

@@ -1,3 +1,5 @@
+import pathlib
+
 import pytest
 
 from wishlist_updater.config import Config, ConfigError, Secrets, realm_slug
@@ -59,3 +61,48 @@ def test_item_overrides_validation(tmp_path):
     cfg.write_text(base + "waist = { crafted_stats = [40] }\n")
     with pytest.raises(ConfigError, match="needs at least an id"):
         Config.load(cfg)
+
+
+def _load(tmp_path, text):
+    cfg = tmp_path / "w.toml"
+    cfg.write_text(text)
+    return Config.load(cfg)
+
+
+CHAR = '[[characters]]\nname = "A"\nrealm = "b"\n'
+
+
+def test_unknown_settings_are_errors_with_a_hint(tmp_path):
+    with pytest.raises(ConfigError, match="did you mean 'upload_difficulties'"):
+        _load(tmp_path, 'upload_difficulty = "Mythic"\n' + CHAR)
+    with pytest.raises(ConfigError, match="unknown \\[\\[characters\\]\\] key 'realms'"):
+        _load(tmp_path, '[[characters]]\nname = "A"\nrealms = "b"\n')
+    with pytest.raises(ConfigError, match=r"unknown \[qe\] setting 'mplus_levle'"):
+        _load(tmp_path, "[qe]\nmplus_levle = 10\n" + CHAR)
+
+
+@pytest.mark.parametrize("value", ["[]", '""', "[1]", "7"])
+def test_raid_difficulty_must_be_names(tmp_path, value):
+    with pytest.raises(ConfigError, match="qe.raid_difficulty"):
+        _load(tmp_path, f"[qe]\nraid_difficulty = {value}\n" + CHAR)
+
+
+def test_upload_difficulties_are_normalised_to_the_raid_spelling_and_order(tmp_path):
+    config = _load(
+        tmp_path,
+        'upload_difficulties = ["mythic", "HEROIC"]\n[qe]\nraid_difficulty = ["Heroic", "Mythic"]\n'
+        + CHAR,
+    )
+    assert config.upload_difficulties == ("Heroic", "Mythic")
+    assert _load(tmp_path, CHAR).upload_difficulties is None
+
+
+@pytest.mark.parametrize("value", ['["Mytic"]', "[]", '"Heroic"'])
+def test_upload_difficulties_that_match_nothing_fail_loudly(tmp_path, value):
+    with pytest.raises(ConfigError, match="upload_difficulties"):
+        _load(tmp_path, f'upload_difficulties = {value}\n[qe]\nraid_difficulty = "Mythic"\n' + CHAR)
+
+
+def test_repo_config_loads():
+    config = Config.load(pathlib.Path(__file__).parent.parent / "wishlist.toml")
+    assert config.upload_difficulties == ("Mythic",)

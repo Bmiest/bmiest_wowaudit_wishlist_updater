@@ -23,7 +23,7 @@ on:
         type: boolean
         default: false
       force_upload:
-        description: "Upload to WoWAudit even if nothing changed since the last upload"
+        description: "Upload the upload_difficulties reports even if nothing changed since the last upload"
         type: boolean
         default: false
 
