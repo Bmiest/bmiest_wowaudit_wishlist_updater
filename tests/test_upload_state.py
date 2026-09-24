@@ -217,3 +217,101 @@ async def test_raid_days_drive_uploads_end_to_end(monkeypatch):
     [forced] = await run2(load_state(None), force=True)
     assert "Not a raid day" in skipped.upload_skipped and skipped.report_url
     assert forced.uploaded_via and uploads2 == ["rMythic"]
+
+
+# --- WoWAudit socket rejections ---------------------------------------------------
+
+from wishlist_updater.upload_state import preferred_auto_gem  # noqa: E402
+from wishlist_updater.wowaudit_web import WowAuditWebError  # noqa: E402
+
+MYTHIC_ONLY = Config(
+    characters=(SHIFTHEAL,),
+    qe={"raid_difficulty": ["Heroic", "Mythic"], "auto_gem": False},
+    upload_difficulties=("Mythic",),
+)
+KEY = "shiftheal-ragnaros-eu"
+
+
+def _socket_harness(monkeypatch, wants_sockets, error=None):
+    """WoWAudit that accepts only reports whose socket setting is `wants_sockets`."""
+    generated, uploads = [], []
+
+    async def generate(profile, qe_settings):
+        gem = bool(qe_settings.get("auto_gem"))
+        generated.append((qe_settings["raid_difficulty"], gem))
+        return f"https://questionablyepic.com/live/upgradereport/{qe_settings['raid_difficulty']}{int(gem)}"
+
+    async def upload(url, name):
+        uploads.append(url.rsplit("/", 1)[1])
+        has_gems = url.endswith("1")
+        if error:
+            raise WowAuditWebError(error)
+        if has_gems != wants_sockets:
+            need = "must contain vault sockets" if wants_sockets else "must not contain sockets"
+            raise WowAuditWebError(f"WoWAudit could not import the report: Report items {need}.")
+
+    async def fake_raiderio(character, *, api_key=None):
+        return cli.parse_simc_text(RAIDERIO)
+
+    monkeypatch.setattr(cli, "fetch_simc_from_raiderio", fake_raiderio)
+
+    async def run(state):
+        return await cli.process_character(
+            SHIFTHEAL,
+            config=MYTHIC_ONLY,
+            secrets=Secrets(wowaudit_api_key=None),
+            simc_override=None,
+            generate_report=generate,
+            upload=upload,
+            upload_method="login session",
+            upload_state=state,
+            force_upload=True,
+        )
+
+    return generated, uploads, run
+
+
+async def test_socket_rejection_retries_with_sockets_and_remembers(monkeypatch):
+    generated, uploads, run = _socket_harness(monkeypatch, wants_sockets=True)
+    state = load_state(None)
+    heroic, mythic = await run(state)
+    assert uploads == ["Mythic0", "Mythic1"]  # rejected without sockets, accepted with
+    assert mythic.uploaded_via and mythic.upload_error is None
+    assert mythic.report_url.endswith("Mythic1")  # the uploaded version is what's reported
+    assert "with sockets" in mythic.upload_note
+    assert preferred_auto_gem(state, KEY, "Mythic") is True
+    assert heroic.dashboard_only and ("Heroic", False) in generated  # Heroic untouched
+
+    generated.clear(), uploads.clear()
+    await run(state)  # next run starts with sockets: no wasted, rejected upload
+    assert uploads == ["Mythic1"] and ("Mythic", True) in generated
+
+
+async def test_socket_rejection_works_the_other_way_round(monkeypatch):
+    _, uploads, run = _socket_harness(monkeypatch, wants_sockets=False)
+    state = load_state(None)
+    remember = cli.remember_auto_gem  # start from a remembered "with sockets"
+    remember(state, KEY, "Mythic", True)
+    _, mythic = await run(state)
+    assert uploads == ["Mythic1", "Mythic0"]
+    assert mythic.uploaded_via and "without sockets" in mythic.upload_note
+    assert preferred_auto_gem(state, KEY, "Mythic") is False
+
+
+async def test_other_upload_errors_are_not_retried(monkeypatch):
+    _, uploads, run = _socket_harness(monkeypatch, wants_sockets=True, error="HTTP 500")
+    _, mythic = await run(load_state(None))
+    assert uploads == ["Mythic0"]
+    assert "HTTP 500" in mythic.upload_error and mythic.upload_note is None
+
+
+async def test_failed_retry_reports_both_errors(monkeypatch):
+    _, uploads, run = _socket_harness(
+        monkeypatch, wants_sockets=True, error="Report items must contain vault sockets."
+    )
+    state = load_state(None)
+    _, mythic = await run(state)
+    assert uploads == ["Mythic0", "Mythic1"]  # exactly one retry
+    assert mythic.upload_error.count("vault sockets") == 2
+    assert "retry with sockets" in mythic.upload_error
+    assert preferred_auto_gem(state, KEY, "Mythic") is None  # nothing learned from a failure

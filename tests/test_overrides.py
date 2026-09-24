@@ -143,13 +143,19 @@ def test_replace_unknown_character():
         replace_item_overrides(TWO_CHARS, "Nobody", {})
 
 
-def test_refresh_is_a_no_op_on_the_real_config_with_the_real_export(tmp_path):
+def test_refresh_is_idempotent_on_the_real_config(tmp_path):
+    """Refreshing twice from the same export changes nothing the second time, and keeps the
+    rest of the real wishlist.toml (comments, other settings) intact."""
     cfg = tmp_path / "wishlist.toml"
     cfg.write_text(REPO_CONFIG.read_text())
     simc = tmp_path / "export.txt"
     simc.write_text(ADDON_SIMC)
     assert cli.main(["--config", str(cfg), "--refresh-overrides", str(simc)]) == 0
-    assert cfg.read_text() == REPO_CONFIG.read_text()
+    once = cfg.read_text()
+    assert cli.main(["--config", str(cfg), "--refresh-overrides", str(simc)]) == 0
+    assert cfg.read_text() == once
+    assert Config.load(cfg).characters[0].item_overrides == extract_overrides(ADDON_SIMC)
+    assert "upload_days" in once and "[qe]" in once  # the rest of the file survives
 
 
 def test_refresh_updates_after_a_swap(tmp_path, capsys):

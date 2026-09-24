@@ -114,3 +114,13 @@ def raid_day_decision(
         if uploaded.astimezone(UTC).date() == now.astimezone(UTC).date():
             return "Already uploaded today"
     return None
+
+
+def preferred_auto_gem(state: dict, character_key: str, difficulty: str) -> bool | None:
+    """The socket setting WoWAudit last accepted for this report, if it had to be learned."""
+    return state.get("preferences", {}).get(character_key, {}).get(difficulty, {}).get("auto_gem")
+
+
+def remember_auto_gem(state: dict, character_key: str, difficulty: str, value: bool) -> None:
+    prefs = state.setdefault("preferences", {}).setdefault(character_key, {})
+    prefs.setdefault(difficulty, {})["auto_gem"] = value

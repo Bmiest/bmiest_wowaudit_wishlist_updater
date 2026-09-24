@@ -34,7 +34,7 @@ run applies, and `simc_source` picks where the gear comes from:
   two Blizzard secrets.
 
 The `[qe]` settings mirror the guild's droptimizer rules. `auto_gem = false` means no sockets get
-added, and `upgrade_all_to_max = true` counts your equipped gear at its max upgrade level (the
+added (but see below), and `upgrade_all_to_max = true` counts your equipped gear at its max upgrade level (the
 closest thing QE has to Raidbots' "Match Droptimizer Item Levels").
 
 `raid_difficulty` can be a single difficulty or a list. QE only runs one difficulty per report,
@@ -43,6 +43,12 @@ picks which of them go to WoWAudit; the rest are only shown on the dashboard. Cu
 `["Heroic", "Mythic"]` get a report, and only Mythic is uploaded, to keep the number of uploads
 low. Uploads follow the order of `raid_difficulty`, so if you upload more than one, keep `"Mythic"` last there: where two reports overlap (the +10
 dungeon items), the last upload wins, and the Mythic numbers are the ones the guild wants.
+
+WoWAudit's team configuration decides whether it accepts reports with or without sockets, and
+it can change. When WoWAudit rejects an upload because of sockets (either way round), the run
+rebuilds that report with QE's socket option flipped and retries once. It then remembers the
+accepted setting in the private upload state, so later runs start with it. The run summary
+notes when that happened.
 
 ### 3. Runner
 

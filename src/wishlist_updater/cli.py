@@ -26,8 +26,10 @@ from wishlist_updater.upload_state import (
     fingerprint,
     last_uploaded_at,
     load_state,
+    preferred_auto_gem,
     raid_day_decision,
     record_upload,
+    remember_auto_gem,
     upload_decision,
 )
 from wishlist_updater.wowaudit import upload_report
@@ -59,6 +61,7 @@ class Outcome:
     # step summary) but never reach the public dashboard data.
     upload_error: str | None = None
     dashboard_only: bool = False  # difficulty not in upload_difficulties: never uploaded
+    upload_note: str | None = None  # private: e.g. the socket setting had to be switched
 
     @property
     def label(self) -> str:
@@ -219,6 +222,15 @@ async def process_character(
         outcomes.append(outcome)
         try:
             settings = {**config.qe, "raid_difficulty": difficulty}
+            uploads_this = upload is not None and (
+                config.upload_difficulties is None or difficulty in config.upload_difficulties
+            )
+            if uploads_this and upload_state is not None:
+                # WoWAudit's team configuration decides whether reports need sockets; use
+                # what it last accepted so we don't spend a rejected upload finding out.
+                pref = preferred_auto_gem(upload_state, state_key, difficulty)
+                if pref is not None:
+                    settings["auto_gem"] = pref
             log.info("%s: generating QE Live report", outcome.label)
             outcome.report_url = await generate_report(profile, settings)
             log.info("%s: report %s", outcome.label, outcome.report_url)
@@ -261,9 +273,32 @@ async def process_character(
             try:
                 await upload(outcome.report_url, profile.name)
             except Exception as exc:
-                log.exception("%s: upload failed", outcome.label)
-                outcome.upload_error = f"{type(exc).__name__}: {exc}"
-                continue
+                if not _is_socket_rejection(exc):
+                    log.exception("%s: upload failed", outcome.label)
+                    outcome.upload_error = f"{type(exc).__name__}: {exc}"
+                    continue
+                # WoWAudit rejected the report for its sockets (either way round): rebuild it
+                # with QE's socket option flipped and try once more.
+                first_error = f"{type(exc).__name__}: {exc}"
+                settings = {**settings, "auto_gem": not settings.get("auto_gem", False)}
+                wanted = "with" if settings["auto_gem"] else "without"
+                log.warning("%s: WoWAudit wants sockets %s; retrying", outcome.label, wanted)
+                try:
+                    outcome.report_url = await generate_report(profile, settings)
+                    await upload(outcome.report_url, profile.name)
+                except Exception as exc2:
+                    log.exception("%s: upload failed again", outcome.label)
+                    outcome.upload_error = (
+                        f"{first_error}; retry {wanted} sockets: {type(exc2).__name__}: {exc2}"
+                    )
+                    continue
+                fp = fingerprint(profile.text, settings, difficulty)
+                if upload_state is not None:
+                    remember_auto_gem(upload_state, state_key, difficulty, settings["auto_gem"])
+                outcome.upload_note = (
+                    f"WoWAudit rejected the report ({first_error}); uploaded the version "
+                    f"{wanted} sockets instead, and later runs will use that setting"
+                )
             outcome.uploaded_via = upload_method
             log.info("%s: imported into WoWAudit (%s)", outcome.label, upload_method)
             if upload_state is not None:
@@ -370,6 +405,12 @@ def choose_upload(
     return None, None
 
 
+def _is_socket_rejection(exc: Exception) -> bool:
+    """WoWAudit refuses reports whose socket setting doesn't match the team configuration,
+    e.g. "Report items must contain vault sockets"."""
+    return "socket" in str(exc).casefold()
+
+
 def save_upload_state(path: Path, state: dict) -> None:
     """Private: the workflow keeps this file in the Actions cache, never on the public site."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -401,6 +442,8 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
             result = "📋 report only: paste the link into WoWAudit"
         if o.warnings:
             result += "<br>⚠️ " + "<br>⚠️ ".join(o.warnings)
+        if o.upload_note:
+            result += f"<br>ℹ️ {o.upload_note}"
         report = f"[link]({o.report_url})" if o.report_url else ""
         rows.append(f"| {o.label} | {result.replace('|', '/')} | {report} |")
     with open(path, "a", encoding="utf-8") as fh:

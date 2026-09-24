@@ -43,7 +43,6 @@ region = "eu"
 # /simc export into the workflow's manual-run form (Actions -> Run workflow -> simc), or run
 #   uv run wishlist-updater --refresh-overrides my_simc_export.txt
 [characters.item_overrides]
-head = { id = 271555, redirected_base_stats = 268242 }
 shoulder = { id = 271553, redirected_base_stats = 239031 }
 chest = { id = 271558, redirected_base_stats = 268221 }
 waist = { id = 239649, crafted_stats = [40, 36] }
