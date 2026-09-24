@@ -34,7 +34,10 @@ def run_header(summary: dict) -> dict:
                 "skipped": c.get("skipped"),
                 "warnings": c.get("warnings", []),
                 "reports": [
-                    {k: r.get(k) for k in ("difficulty", "report_id", "report_url", "error")}
+                    {
+                        k: r.get(k)
+                        for k in ("difficulty", "report_id", "report_url", "uploaded", "error")
+                    }
                     for r in c.get("reports", [])
                 ],
             }

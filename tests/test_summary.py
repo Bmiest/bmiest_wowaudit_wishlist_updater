@@ -189,5 +189,33 @@ def test_upload_failure_marks_the_run_failed_without_saying_why():
     assert s["run"]["ok"] is False
     [report] = s["characters"][0]["reports"]
     assert report["error"] is None and report["report_id"] == "bbb"  # the report itself is fine
+    assert report["uploaded"] is False
     text = json.dumps(s).lower()
-    assert "wowaudit" not in text and "socket" not in text and "upload" not in text
+    assert "wowaudit" not in text and "socket" not in text
+    for key in ("uploaded_via", "upload_error", "upload_skipped", "upload_method"):
+        assert key not in text
+
+
+def test_uploaded_flag_is_the_only_public_upload_detail():
+    outcomes = [
+        cli.Outcome(
+            SHIFTHEAL,
+            "Heroic",
+            report_url="https://questionablyepic.com/live/upgradereport/h",
+            dashboard_only=True,
+            simc=ADDON,
+        ),
+        cli.Outcome(
+            SHIFTHEAL,
+            "Mythic",
+            report_url="https://questionablyepic.com/live/upgradereport/m",
+            uploaded_via="login session",
+            simc=ADDON,
+        ),
+    ]
+    s = build_summary(outcomes, started_at=datetime(2026, 9, 24, tzinfo=UTC), fetch_results=False)
+    assert [(r["difficulty"], r["uploaded"]) for r in s["characters"][0]["reports"]] == [
+        ("Heroic", False),
+        ("Mythic", True),
+    ]
+    assert "login session" not in json.dumps(s)

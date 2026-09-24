@@ -1,7 +1,7 @@
 """Machine-readable run summary, published to the GitHub Pages dashboard.
 
-Nothing about WoWAudit uploads goes in here (the user wants the public page silent about
-them): no upload method/status fields and no upload errors, which stay in the run log.
+Upload details stay private (method, skip reasons, errors: run log only). The one public bit
+is reports[].uploaded, which the run history shows as a check mark.
 
 Everything in here ends up on a public website, so it only carries data that's public
 anyway: equipped gear (Armory / Raider.io), QE report links and their results (QE's public
@@ -201,6 +201,9 @@ def build_summary(
                     "difficulty": o.difficulty,
                     "report_id": report_id,
                     "report_url": o.report_url,
+                    # Only whether this report was uploaded (the history shows a check mark);
+                    # how, and any upload errors, stay private.
+                    "uploaded": bool(o.uploaded_via),
                     "error": o.error,
                     "results": slim_results(report(client, report_id)),
                 }

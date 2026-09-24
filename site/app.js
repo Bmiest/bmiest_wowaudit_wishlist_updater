@@ -284,19 +284,21 @@ function computeAvgIlvl(gear) {
   return { avg, count: values.length, total: ILVL_SLOTS.length };
 }
 
-/** Plain links to a run's QE reports ("Heroic  Mythic"), used in the history rows. No check
- * marks: a ✓ reads as "uploaded", and the page deliberately says nothing about uploads. A
- * report whose generation failed is shown in the error colour. */
+/** Links to a run's QE reports ("Heroic  Mythic ✓") for the history rows. The check mark
+ * marks the report that was uploaded (reports[].uploaded); only uploads get one. A report
+ * whose generation failed is shown in the error colour. */
 function reportLinksRow(reports, className) {
   const byDiff = new Map((Array.isArray(reports) ? reports : []).map((r) => [r.difficulty, r]));
   const row = h("span", { className: className || "report-links" });
   for (const diff of REPORT_DIFFICULTIES) {
     const r = byDiff.get(diff);
     if (!r) continue;
+    const uploaded = r.uploaded === true && !r.error;
     const link = linkOrText(r.error ? null : isReportUrl(r.report_url), diff, {
-      className: `report-link${r.error ? " report-link--fail" : ""}`,
+      className: `report-link${r.error ? " report-link--fail" : ""}${uploaded ? " report-link--up" : ""}`,
     });
-    link.setAttribute("title", r.error ? `${diff}: error` : `${diff} report`);
+    if (uploaded) link.appendChild(h("span", { className: "report-link__check", text: " ✓" }));
+    link.setAttribute("title", r.error ? `${diff}: error` : `${diff} report${uploaded ? ", uploaded" : ""}`);
     link.addEventListener("click", (e) => e.stopPropagation()); // don't also open the run
     row.appendChild(link);
   }
