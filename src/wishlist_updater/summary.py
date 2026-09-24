@@ -214,7 +214,9 @@ def build_summary(
             "commit": os.environ.get("GITHUB_SHA"),
             "started_at": started_at.isoformat(timespec="seconds"),
             "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
-            "ok": not any(o.error for o in outcomes),
+            # Any failure makes the run not ok, upload failures included (they fail the GitHub
+            # run too). The page shows "failed" without saying why; the reason stays private.
+            "ok": not any(o.error or o.upload_error for o in outcomes),
         },
         "characters": list(characters.values()),
     }

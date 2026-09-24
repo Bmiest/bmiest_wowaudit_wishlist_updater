@@ -173,3 +173,21 @@ def test_crest_planner_failure_is_only_a_warning():
     assert [o.kind for o in outcomes] == ["wishlist"]
     assert outcomes[0].error is None
     assert any("Crest planner" in w for w in outcomes[0].warnings)
+
+
+def test_upload_failure_marks_the_run_failed_without_saying_why():
+    outcomes = [
+        cli.Outcome(
+            SHIFTHEAL,
+            "Mythic",
+            report_url="https://questionablyepic.com/live/upgradereport/bbb",
+            upload_error="WowAuditWebError: Report items must contain vault sockets.",
+            simc=ADDON,
+        ),
+    ]
+    s = build_summary(outcomes, started_at=datetime(2026, 9, 24, tzinfo=UTC), fetch_results=False)
+    assert s["run"]["ok"] is False
+    [report] = s["characters"][0]["reports"]
+    assert report["error"] is None and report["report_id"] == "bbb"  # the report itself is fine
+    text = json.dumps(s).lower()
+    assert "wowaudit" not in text and "socket" not in text and "upload" not in text
