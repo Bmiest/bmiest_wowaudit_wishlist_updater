@@ -284,43 +284,22 @@ function computeAvgIlvl(gear) {
   return { avg, count: values.length, total: ILVL_SLOTS.length };
 }
 
-/** Per-difficulty check marks ("H ✓  M ✓"), shared by the LAST RUN tile and
- * the compact history rows. Only difficulties actually present are shown. */
-function difficultyChecks(reports) {
+/** Plain links to a run's QE reports ("Heroic  Mythic"), used in the history rows. No check
+ * marks: a ✓ reads as "uploaded", and the page deliberately says nothing about uploads. A
+ * report whose generation failed is shown in the error colour. */
+function reportLinksRow(reports, className) {
   const byDiff = new Map((Array.isArray(reports) ? reports : []).map((r) => [r.difficulty, r]));
-  const out = [];
+  const row = h("span", { className: className || "report-links" });
   for (const diff of REPORT_DIFFICULTIES) {
     const r = byDiff.get(diff);
     if (!r) continue;
-    const letter = diff.charAt(0);
-    let state = "muted";
-    let symbol = "–"; // no report this run
-    let title = `${diff}: no report`;
-    if (r.error) {
-      state = "fail";
-      symbol = "✗";
-      title = `${diff}: error`;
-    } else if (r.report_id || isReportUrl(r.report_url)) {
-      state = "ok";
-      symbol = "✓";
-      title = `${diff}: report generated`;
-    }
-    out.push({ letter, symbol, state, title, url: isReportUrl(r.report_url) });
+    const link = linkOrText(r.error ? null : isReportUrl(r.report_url), diff, {
+      className: `report-link${r.error ? " report-link--fail" : ""}`,
+    });
+    link.setAttribute("title", r.error ? `${diff}: error` : `${diff} report`);
+    link.addEventListener("click", (e) => e.stopPropagation()); // don't also open the run
+    row.appendChild(link);
   }
-  return out;
-}
-
-function difficultyChecksRow(reports, className) {
-  const row = h("span", { className: className || "diff-checks" });
-  difficultyChecks(reports).forEach((d) => {
-    row.appendChild(
-      h("span", {
-        className: `diff-check diff-check--${d.state}`,
-        text: `${d.letter} ${d.symbol}`,
-        attrs: { title: d.title },
-      })
-    );
-  });
   return row;
 }
 
@@ -581,7 +560,7 @@ function historyRow(run) {
 
   const chars = Array.isArray(run.characters) ? run.characters : [];
   const allReports = chars.flatMap((c) => (Array.isArray(c.reports) ? c.reports : []));
-  row.appendChild(difficultyChecksRow(allReports, "diff-checks diff-checks--sm"));
+  row.appendChild(reportLinksRow(allReports));
 
   const ghUrl = isGithubUrl(run.url);
   const footLink = linkOrText(ghUrl, "GitHub ↗", { className: "history-row__gh" });
@@ -760,7 +739,6 @@ function tileLastRun(run, character) {
     h("span", { className: "tile__big", text: relativeTime(when), attrs: { title: absoluteTime(when) } }),
     h("div", { className: "tile__detail" }, [
       h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? "OK" : "Failed" }),
-      difficultyChecksRow(character ? character.reports : []),
     ]),
   ];
   return tile("Last run", body);
