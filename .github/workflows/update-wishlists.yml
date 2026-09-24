@@ -7,7 +7,11 @@ on:
   schedule:
     # Daily; the jitter job below starts the real work at a random time between
     # 06:00 and 09:00 UTC, so the requests don't hit the same minute every day.
+    # Only raid days (wishlist.toml upload_days) upload to WoWAudit.
     - cron: "0 6 * * *"
+    # Raid-day catch-up (Wed, Sun; starts 12:00-15:00 UTC): uploads only if the morning
+    # run didn't, so a failed morning upload is retried before the evening raid.
+    - cron: "0 12 * * 0,3"
   workflow_dispatch:
     inputs:
       character:
@@ -23,7 +27,7 @@ on:
         type: boolean
         default: false
       force_upload:
-        description: "Upload the upload_difficulties reports even if nothing changed since the last upload"
+        description: "Upload the upload_difficulties reports now, even on a non-raid day or if nothing changed"
         type: boolean
         default: false
 
@@ -34,13 +38,14 @@ permissions:
 # started during it would queue for hours. The jobs that need exclusivity lock themselves.
 
 jobs:
-  # Scheduled runs only: wait a random 0-180 min (start between 06:00 and 09:00 UTC).
+  # Scheduled runs only: wait a random 0-180 min, so the daily run starts between 06:00
+  # and 09:00 UTC and the raid-day catch-up between 12:00 and 15:00 UTC.
   jitter:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 190
     steps:
-      - name: Random start between 06:00 and 09:00 UTC
+      - name: Random start within 3 hours of the scheduled time
         run: |
           delay=$(( $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % 10800 ))
           echo "Starting in $(( delay / 60 )) min"

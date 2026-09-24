@@ -83,3 +83,34 @@ def record_upload(
 
 def last_uploaded_at(state: dict, character_key: str, difficulty: str) -> str | None:
     return state["characters"].get(character_key, {}).get(difficulty, {}).get("uploaded_at")
+
+
+WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def raid_day_decision(
+    state: dict,
+    character_key: str,
+    difficulty: str,
+    fp: str,
+    *,
+    now: datetime,
+    upload_weekdays: tuple[int, ...],
+) -> str | None:
+    """Upload on raid days only (so the wishlist is fresh for the raid, and WoWAudit gets few
+    uploads), and at most once per raid day unless the report's inputs changed.
+
+    None = upload; otherwise the reason to skip. Days are UTC weekdays.
+    """
+    if now.weekday() not in upload_weekdays:
+        days = " and ".join(WEEKDAYS[d].capitalize() for d in sorted(upload_weekdays))
+        return f"Not a raid day (uploads happen on {days})"
+    last = state["characters"].get(character_key, {}).get(difficulty)
+    if last and last.get("fingerprint") == fp:
+        try:
+            uploaded = datetime.fromisoformat(last["uploaded_at"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if uploaded.astimezone(UTC).date() == now.astimezone(UTC).date():
+            return "Already uploaded today"
+    return None

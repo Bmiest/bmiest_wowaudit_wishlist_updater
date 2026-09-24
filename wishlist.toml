@@ -10,10 +10,11 @@ simc_source = "raiderio"
 # estimates what spending crests on each equipped item would gain.
 crest_planner = true
 
-# Unchanged reports are re-uploaded after this many days, because WoWAudit drops wishes
-# after ~3 days. 1.75 (not 2): with the random 06:00-09:00 start, the run two days later
-# can land just under 48 h after the last upload, and must still re-upload.
-reupload_after_days = 1.75
+# Upload on raid days only (UTC weekdays): the wishlist is fresh for the raid, and WoWAudit
+# gets few uploads. The morning run (06:00-09:00 UTC) uploads; the 12:00 UTC catch-up run on
+# these days only uploads if the morning didn't. Other days still build the dashboard reports.
+# A pasted /simc export or force_upload always uploads.
+upload_days = ["Wednesday", "Sunday"]
 
 # Only these difficulties are uploaded to WoWAudit (fewer uploads). The other reports in
 # [qe] raid_difficulty are still generated for the dashboard.

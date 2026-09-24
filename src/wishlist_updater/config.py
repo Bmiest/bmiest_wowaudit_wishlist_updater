@@ -26,6 +26,7 @@ _TOP_LEVEL_KEYS = frozenset(
         "raiderio_stale_after_hours",
         "reupload_after_days",
         "upload_difficulties",
+        "upload_days",
     }
 )
 _CHARACTER_KEYS = frozenset({"name", "realm", "region", "item_overrides"})
@@ -99,6 +100,9 @@ class Config:
     # The others are still generated for the dashboard only. Always spelled as in
     # qe.raid_difficulty and in its order (uploads happen in that order).
     upload_difficulties: tuple[str, ...] | None = None
+    # Weekdays (0 = Monday, UTC) on which reports are uploaded, e.g. raid days. When set,
+    # this replaces the "changed or older than reupload_after_days" rule.
+    upload_weekdays: tuple[int, ...] | None = None
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -163,6 +167,7 @@ class Config:
             raiderio_stale_after_hours=float(raw.get("raiderio_stale_after_hours", 48)),
             reupload_after_days=float(raw.get("reupload_after_days", 7)),
             upload_difficulties=uploads,
+            upload_weekdays=_parse_upload_days(raw.get("upload_days"), path),
         )
 
 
@@ -233,3 +238,21 @@ def _resolve_upload_difficulties(
             )
     chosen = {w.casefold() for w in wanted}
     return tuple(r for r in raid if r.casefold() in chosen)
+
+
+def _parse_upload_days(value: object, path: Path) -> tuple[int, ...] | None:
+    from wishlist_updater.upload_state import WEEKDAYS
+
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list) or not value or not all(isinstance(v, str) for v in value):
+        raise ConfigError(f"{path}: upload_days must be a weekday name or a non-empty list of them")
+    days = []
+    for v in value:
+        name = v.strip().casefold()
+        if name not in WEEKDAYS:
+            raise ConfigError(f"{path}: upload_days has {v!r}, which isn't a weekday name")
+        days.append(WEEKDAYS.index(name))
+    return tuple(sorted(set(days)))

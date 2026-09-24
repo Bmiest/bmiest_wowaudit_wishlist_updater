@@ -26,6 +26,7 @@ from wishlist_updater.upload_state import (
     fingerprint,
     last_uploaded_at,
     load_state,
+    raid_day_decision,
     record_upload,
     upload_decision,
 )
@@ -108,7 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--force-upload",
         action="store_true",
-        help="Upload even when the report's inputs are unchanged since the last upload.",
+        help="Upload now, even on a non-raid day or when nothing changed since the last upload.",
     )
     p.add_argument(
         "--summary-json",
@@ -234,14 +235,24 @@ async def process_character(
             # reports whose inputs haven't changed, unless the user asked for this upload.
             if upload_state is not None and not force_upload and simc_override is None:
                 now = datetime.now(UTC)
-                reason = upload_decision(
-                    upload_state,
-                    state_key,
-                    difficulty,
-                    fp,
-                    now=now,
-                    max_age_days=config.reupload_after_days,
-                )
+                if config.upload_weekdays is not None:
+                    reason = raid_day_decision(
+                        upload_state,
+                        state_key,
+                        difficulty,
+                        fp,
+                        now=now,
+                        upload_weekdays=config.upload_weekdays,
+                    )
+                else:
+                    reason = upload_decision(
+                        upload_state,
+                        state_key,
+                        difficulty,
+                        fp,
+                        now=now,
+                        max_age_days=config.reupload_after_days,
+                    )
                 if reason:
                     outcome.upload_skipped = reason
                     outcome.last_uploaded_at = last_uploaded_at(upload_state, state_key, difficulty)
@@ -378,7 +389,8 @@ def write_step_summary(outcomes: list[Outcome]) -> None:
         elif o.dashboard_only:
             result = "📊 dashboard only (not in upload_difficulties)"
         elif o.upload_skipped:
-            result = f"⏭️ unchanged, last imported {o.last_uploaded_at or 'earlier'}"
+            last = f" (last import {o.last_uploaded_at})" if o.last_uploaded_at else ""
+            result = f"⏭️ not uploaded: {o.upload_skipped}{last}"
         elif o.error:
             result = f"❌ {o.error}"
         elif o.skipped:
@@ -450,7 +462,7 @@ async def run(args: argparse.Namespace) -> int:
         elif o.dashboard_only:
             status = "dashboard only (not uploaded)"
         elif o.upload_skipped:
-            status = f"unchanged, not re-uploaded (last import {o.last_uploaded_at})"
+            status = f"not uploaded: {o.upload_skipped}"
         print(f"{o.label}: {status} {o.report_url or ''}".rstrip())
     if upload_state is not None and args.upload_state:
         save_upload_state(args.upload_state, upload_state)

@@ -169,3 +169,51 @@ async def test_only_listed_difficulties_are_uploaded(monkeypatch, tmp_path):
     cli.write_step_summary([heroic, mythic])
     text = summary.read_text()
     assert "dashboard only" in text and "paste the link" not in text
+
+
+# --- raid-day uploads ------------------------------------------------------------
+
+from wishlist_updater.upload_state import raid_day_decision  # noqa: E402
+
+WED = datetime(2026, 9, 23, 7, 30, tzinfo=UTC)  # a Wednesday
+RAID_DAYS = (2, 6)  # Wednesday, Sunday
+
+
+def test_raid_day_decision():
+    state = load_state(None)
+    fp = fingerprint(RAIDERIO, QE, "Mythic")
+
+    def decide(now, fp_=fp):
+        return raid_day_decision(state, "k", "Mythic", fp_, now=now, upload_weekdays=RAID_DAYS)
+
+    assert "Not a raid day" in decide(WED - timedelta(days=1))  # Tuesday
+    assert "Wednesday and Sunday" in decide(WED - timedelta(days=1))
+    assert decide(WED) is None  # raid day, never uploaded
+    record_upload(state, "k", "Mythic", fp, "r1", now=WED)
+    assert decide(WED.replace(hour=12)) == "Already uploaded today"  # the catch-up run
+    assert decide(WED.replace(hour=12), fp_="changed") is None  # new gear on raid day
+    assert decide(WED + timedelta(days=4)) is None  # Sunday: upload again
+
+
+async def test_raid_days_drive_uploads_end_to_end(monkeypatch):
+    today = datetime.now(UTC).weekday()
+    raid_today = Config(
+        characters=(SHIFTHEAL,), qe={"raid_difficulty": "Mythic"}, upload_weekdays=(today,)
+    )
+    uploads, run = _harness(monkeypatch, raid_today)
+    state = load_state(None)
+    [first] = await run(state)
+    [second] = await run(state)
+    assert uploads == ["rMythic"]  # the catch-up run on the same raid day doesn't re-upload
+    assert first.uploaded_via and second.upload_skipped == "Already uploaded today"
+
+    not_today = Config(
+        characters=(SHIFTHEAL,),
+        qe={"raid_difficulty": "Mythic"},
+        upload_weekdays=((today + 1) % 7,),
+    )
+    uploads2, run2 = _harness(monkeypatch, not_today)
+    [skipped] = await run2(load_state(None))
+    [forced] = await run2(load_state(None), force=True)
+    assert "Not a raid day" in skipped.upload_skipped and skipped.report_url
+    assert forced.uploaded_via and uploads2 == ["rMythic"]

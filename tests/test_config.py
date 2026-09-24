@@ -106,3 +106,13 @@ def test_upload_difficulties_that_match_nothing_fail_loudly(tmp_path, value):
 def test_repo_config_loads():
     config = Config.load(pathlib.Path(__file__).parent.parent / "wishlist.toml")
     assert config.upload_difficulties == ("Mythic",)
+
+
+def test_upload_days(tmp_path):
+    config = _load(tmp_path, 'upload_days = ["sunday", "Wednesday", "WEDNESDAY"]\n' + CHAR)
+    assert config.upload_weekdays == (2, 6)
+    assert _load(tmp_path, CHAR).upload_weekdays is None
+    with pytest.raises(ConfigError, match="upload_days"):
+        _load(tmp_path, 'upload_days = ["Wensday"]\n' + CHAR)
+    with pytest.raises(ConfigError, match="upload_days"):
+        _load(tmp_path, "upload_days = []\n" + CHAR)
