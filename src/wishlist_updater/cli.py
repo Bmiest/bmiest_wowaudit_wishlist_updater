@@ -282,7 +282,9 @@ async def process_character(
                 first_error = f"{type(exc).__name__}: {exc}"
                 settings = {**settings, "auto_gem": not settings.get("auto_gem", False)}
                 wanted = "with" if settings["auto_gem"] else "without"
-                log.warning("%s: WoWAudit wants sockets %s; retrying", outcome.label, wanted)
+                log.warning(
+                    "%s: WoWAudit wants the report %s sockets; retrying", outcome.label, wanted
+                )
                 try:
                     outcome.report_url = await generate_report(profile, settings)
                     await upload(outcome.report_url, profile.name)
