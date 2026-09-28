@@ -301,7 +301,11 @@ a.report-link:hover { color: var(--jade); }
   font-size: 14px; font-weight: 600; color: var(--paper);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.upgrade-row__source { font-size: 11px; color: var(--ink-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upgrade-row__source { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.upgrade-row__boss,
+.upgrade-row__where { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.upgrade-row__boss { font-size: 12px; color: var(--paper-dim); }
+.upgrade-row__where { font-size: 11px; color: var(--ink-400); }
 .bar-track { height: 8px; background: var(--ink-700); overflow: hidden; min-width: 50px; }
 .bar-fill { height: 100%; background: var(--jade); }
 .bar-fill--gold { background: var(--gold); }

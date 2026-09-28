@@ -235,6 +235,12 @@ function sourceLabel(dropLoc, dropDifficulty) {
   return dropLoc ? String(dropLoc) : "Unknown source";
 }
 
+// dropSource is the raid boss or dungeon name, from QE's item database (runs
+// published before it existed, and Delves/crafted items, have none).
+function dropSourceName(upgrade) {
+  return typeof upgrade.dropSource === "string" && upgrade.dropSource ? upgrade.dropSource : null;
+}
+
 const DROP_LOC_FILTERS = ["All", "Raid", "Dungeon", "Delves", "Crafted"];
 const REPORT_DIFFICULTIES = ["Heroic", "Mythic"];
 
@@ -691,9 +697,11 @@ function tileBestMythic(character) {
   const top = upgrades[0];
   const url = wowheadItemUrl(top.item, null, top.level);
   const link = linkOrText(url, cachedItemLabel(top.item), { className: "tile__link" });
+  const boss = dropSourceName(top);
   const detail = h("div", { className: "tile__detail" }, [
     h("span", { className: "pill pill--ilvl mono", text: Number.isFinite(top.level) ? String(top.level) : "?" }),
     h("span", { className: "tile__pct mono", text: `+${top.percDiff.toFixed(2)}%` }),
+    boss ? h("span", { className: "tile__rank", text: boss }) : null,
   ]);
   return tile("Best Mythic upgrade", [link, detail]);
 }
@@ -949,10 +957,20 @@ function upgradeRow(upgrade, maxPct) {
   fill.style.width = `${pct}%`;
   track.appendChild(fill);
 
+  const boss = dropSourceName(upgrade);
+  const where = sourceLabel(upgrade.dropLoc, upgrade.dropDifficulty);
+  const source = h("span", {
+    className: "upgrade-row__source",
+    attrs: { title: boss ? `${boss} · ${where}` : where },
+  }, [
+    boss ? h("span", { className: "upgrade-row__boss", text: boss }) : null,
+    h("span", { className: "upgrade-row__where", text: where }),
+  ]);
+
   return h("div", { className: "upgrade-row" }, [
     link,
     ilvlPill,
-    h("span", { className: "upgrade-row__source", text: sourceLabel(upgrade.dropLoc, upgrade.dropDifficulty) }),
+    source,
     track,
     h("span", { className: "upgrade-row__pct mono", text: `+${upgrade.percDiff.toFixed(2)}%` }),
   ]);

@@ -5,13 +5,15 @@ is reports[].uploaded, which the run history shows as a check mark.
 
 Everything in here ends up on a public website, so it only carries data that's public
 anyway: equipped gear (Armory / Raider.io), QE report links and their results (QE's public
-API) and run status. Never the WoWAudit session, wishlist contents or raw /simc exports
-(those can include bags and currencies).
+API), which boss or dungeon each item drops from (QE's public item database) and run status.
+Never the WoWAudit session, wishlist contents or raw /simc exports (those can include bags and
+currencies).
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from datetime import UTC, datetime
@@ -20,8 +22,12 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from wishlist_updater.drop_sources import fetch_drop_sources
+
 if TYPE_CHECKING:
     from wishlist_updater.cli import Outcome
+
+log = logging.getLogger("wishlist_updater")
 
 SCHEMA_VERSION = 1
 QE_GET_REPORT_URL = "https://questionablyepic.com/api/getUpgradeReport.php"
@@ -79,6 +85,18 @@ def slim_results(report: dict) -> list[dict]:
     """Only the result columns the dashboard shows."""
     keep = ("item", "level", "dropType", "dropLoc", "dropDifficulty", "percDiff", "score")
     return [{k: r.get(k) for k in keep} for r in report.get("results") or []]
+
+
+def add_drop_sources(characters: list[dict], client: httpx.Client) -> None:
+    """Give every report result a dropSource: its boss or dungeon name (None if unknown)."""
+    results = [r for c in characters for rep in c["reports"] for r in rep["results"]]
+    try:
+        sources = fetch_drop_sources({r["item"] for r in results}, client)
+    except (httpx.HTTPError, ValueError) as exc:
+        log.warning("Boss names unavailable (QE item database): %s", exc)
+        sources = {}
+    for r in results:
+        r["dropSource"] = sources.get(r["item"])
 
 
 def crest_upgrades(current: dict, capped: dict, gear: list[dict]) -> list[dict]:
@@ -208,6 +226,7 @@ def build_summary(
                     "results": slim_results(report(client, report_id)),
                 }
             )
+        add_drop_sources(list(characters.values()), client)
     return {
         "schema": SCHEMA_VERSION,
         "run": {
