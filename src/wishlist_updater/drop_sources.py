@@ -1,9 +1,10 @@
-"""Which raid boss or dungeon an item drops from, for the dashboard's upgrade lists.
+"""Which raid boss or dungeon an item drops from, and which slot it goes in, for the
+dashboard's upgrade lists.
 
 QE's report results only say "Raid" or "Dungeon" and a difficulty. QE Live's public source
-repo has the rest: ItemDB.json maps each item to its {instanceId, encounterId} sources, and
-InstanceDB.ts names them. For raids that's the boss; for Mythic+ (instance -1) QE files the
-dungeons themselves as the encounters.
+repo has the rest: ItemDB.json maps each item to its slot and its {instanceId, encounterId}
+sources, and InstanceDB.ts names them. For raids that's the boss; for Mythic+ (instance -1)
+QE files the dungeons themselves as the encounters.
 
 Everything here ends up on the public dashboard (as text, never markup).
 """
@@ -57,10 +58,22 @@ def item_sources(
     return sources
 
 
-def fetch_drop_sources(item_ids: set[int], client: httpx.Client) -> dict[int, str]:
-    """Look up the given items in QE's databases (raises httpx.HTTPError / ValueError)."""
+def item_slots(item_db: list[dict], item_ids: set[int]) -> dict[int, str]:
+    """{item id: QE's slot name} ("Head", "Finger", "Trinket", "1H Weapon", "Offhand", ...)."""
+    return {
+        item["id"]: item["slot"]
+        for item in item_db
+        if item.get("id") in item_ids and isinstance(item.get("slot"), str)
+    }
+
+
+def fetch_item_info(
+    item_ids: set[int], client: httpx.Client
+) -> tuple[dict[int, str], dict[int, str]]:
+    """({item id: boss or dungeon}, {item id: slot}) from QE's databases
+    (raises httpx.HTTPError / ValueError)."""
     if not item_ids:
-        return {}
+        return {}, {}
     instance_db = client.get(INSTANCE_DB_URL)
     instance_db.raise_for_status()
     item_db = client.get(ITEM_DB_URL)
@@ -68,4 +81,5 @@ def fetch_drop_sources(item_ids: set[int], client: httpx.Client) -> dict[int, st
     items = item_db.json()
     if not isinstance(items, list):
         raise ValueError("QE ItemDB.json is not a list")
-    return item_sources(items, parse_encounter_names(instance_db.text), item_ids)
+    sources = item_sources(items, parse_encounter_names(instance_db.text), item_ids)
+    return sources, item_slots(items, item_ids)

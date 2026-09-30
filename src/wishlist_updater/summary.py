@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from wishlist_updater.drop_sources import fetch_drop_sources
+from wishlist_updater.drop_sources import fetch_item_info
 
 if TYPE_CHECKING:
     from wishlist_updater.cli import Outcome
@@ -87,16 +87,18 @@ def slim_results(report: dict) -> list[dict]:
     return [{k: r.get(k) for k in keep} for r in report.get("results") or []]
 
 
-def add_drop_sources(characters: list[dict], client: httpx.Client) -> None:
-    """Give every report result a dropSource: its boss or dungeon name (None if unknown)."""
+def add_item_info(characters: list[dict], client: httpx.Client) -> None:
+    """Give every report result a dropSource (its boss or dungeon name) and a slot (for the
+    dashboard's power-to-gain total); either is None if QE's item database doesn't say."""
     results = [r for c in characters for rep in c["reports"] for r in rep["results"]]
     try:
-        sources = fetch_drop_sources({r["item"] for r in results}, client)
+        sources, slots = fetch_item_info({r["item"] for r in results}, client)
     except (httpx.HTTPError, ValueError) as exc:
-        log.warning("Boss names unavailable (QE item database): %s", exc)
-        sources = {}
+        log.warning("Boss names and slots unavailable (QE item database): %s", exc)
+        sources, slots = {}, {}
     for r in results:
         r["dropSource"] = sources.get(r["item"])
+        r["slot"] = slots.get(r["item"])
 
 
 def crest_upgrades(current: dict, capped: dict, gear: list[dict]) -> list[dict]:
@@ -226,7 +228,7 @@ def build_summary(
                     "results": slim_results(report(client, report_id)),
                 }
             )
-        add_drop_sources(list(characters.values()), client)
+        add_item_info(list(characters.values()), client)
     return {
         "schema": SCHEMA_VERSION,
         "run": {

@@ -270,6 +270,47 @@ function computeUpgrades(results) {
   return Array.from(byItem.values()).sort((a, b) => b.percDiff - a.percDiff);
 }
 
+// ---------------------------------------------------------------------
+// Power to gain: the biggest upgrade in every slot, added up. Rings and
+// trinkets count their best two items; weapons count a two-hander or a
+// one-hander plus an off-hand, whichever adds more. QE measures each gain
+// against the current gear, so the total is an estimate, not a sim of the
+// whole set. Results only carry a slot (QE's slot names) since it was added
+// to the pipeline, so older runs give null.
+// ---------------------------------------------------------------------
+const PAIRED_SLOTS = new Set(["Finger", "Trinket"]);
+const TWO_HAND_SLOTS = new Set(["2H Weapon"]);
+const ONE_HAND_SLOTS = new Set(["1H Weapon", "WeaponMainHand"]);
+const OFF_HAND_SLOTS = new Set(["Offhand", "Shield"]);
+
+function computePowerToGain(upgrades) {
+  const bySlot = new Map(); // slot -> gains, best first (upgrades come sorted)
+  const weapons = { twoHand: [], oneHand: [], offHand: [] };
+  for (const u of upgrades) {
+    if (typeof u.slot !== "string" || !u.slot) continue;
+    if (TWO_HAND_SLOTS.has(u.slot)) weapons.twoHand.push(u.percDiff);
+    else if (ONE_HAND_SLOTS.has(u.slot)) weapons.oneHand.push(u.percDiff);
+    else if (OFF_HAND_SLOTS.has(u.slot)) weapons.offHand.push(u.percDiff);
+    else {
+      if (!bySlot.has(u.slot)) bySlot.set(u.slot, []);
+      bySlot.get(u.slot).push(u.percDiff);
+    }
+  }
+  const picked = [];
+  for (const [slot, gains] of bySlot) picked.push(...gains.slice(0, PAIRED_SLOTS.has(slot) ? 2 : 1));
+  const twoHand = weapons.twoHand.slice(0, 1);
+  const split = [...weapons.oneHand.slice(0, 1), ...weapons.offHand.slice(0, 1)];
+  const sum = (gains) => gains.reduce((a, b) => a + b, 0);
+  picked.push(...(sum(twoHand) >= sum(split) ? twoHand : split));
+  if (picked.length === 0) return null;
+  return { pct: sum(picked), items: picked.length };
+}
+
+const POWER_TO_GAIN_HINT =
+  "The biggest upgrade in every slot added up (the best two rings and trinkets; " +
+  "a two-hander or a one-hander plus off-hand). QE rates each item against your " +
+  "current gear, so this is an estimate. QE gives % of your healing, not HPS.";
+
 /** The 16 gear slots that make up "average item level" -- shirt and tabard
  * are cosmetic and don't count. */
 const ILVL_SLOTS = [
@@ -682,6 +723,7 @@ function renderTiles(fullData) {
   }
 
   els.tilesContainer.appendChild(tileBestMythic(character));
+  els.tilesContainer.appendChild(tilePowerToGain(character));
   els.tilesContainer.appendChild(tileNextCrest(character));
   els.tilesContainer.appendChild(tileAvgIlvl(character));
   els.tilesContainer.appendChild(tileLastRun(fullData.run, character));
@@ -704,6 +746,31 @@ function tileBestMythic(character) {
     boss ? h("span", { className: "tile__rank", text: boss }) : null,
   ]);
   return tile("Best Mythic upgrade", [link, detail]);
+}
+
+function tilePowerToGain(character) {
+  const label = "Mythic power to gain";
+  const reports = Array.isArray(character.reports) ? character.reports : [];
+  const mythic = reports.find((r) => r.difficulty === "Mythic");
+  const upgrades = mythic ? computeUpgrades(mythic.results) : [];
+  if (upgrades.length === 0) {
+    return tile(label, [h("span", { className: "tile__muted", text: "No upgrades found" })]);
+  }
+  const power = computePowerToGain(upgrades);
+  if (!power) {
+    return tile(label, [h("span", { className: "tile__muted", text: "Not in this run's data" })]);
+  }
+  return tile(label, [
+    h("span", {
+      className: "tile__big tile__big--jade mono",
+      text: `+${power.pct.toFixed(2)}%`,
+      attrs: { title: POWER_TO_GAIN_HINT },
+    }),
+    h("span", {
+      className: "tile__muted",
+      text: `healing, with the best item in every slot (${power.items} items)`,
+    }),
+  ]);
 }
 
 function tileNextCrest(character) {
@@ -897,6 +964,10 @@ function reportPanelContent(report, key) {
   });
   frag.appendChild(filterRow);
 
+  // Follows the tab and the filter: "all Raid upgrades together are worth ...".
+  const powerLine = h("p", { className: "power-line", attrs: { title: POWER_TO_GAIN_HINT } });
+  frag.appendChild(powerLine);
+
   const rowsContainer = h("div", { className: "upgrade-rows" });
   frag.appendChild(rowsContainer);
 
@@ -908,7 +979,21 @@ function reportPanelContent(report, key) {
   function renderRows() {
     clear(rowsContainer);
     clear(toggleWrap);
+    clear(powerLine);
     const filtered = ui.loc === "All" ? upgrades : upgrades.filter((u) => u.dropLoc === ui.loc);
+
+    const power = computePowerToGain(filtered);
+    powerLine.hidden = !power;
+    if (power) {
+      powerLine.append(
+        h("span", { className: "power-line__label", text: "Power to gain" }),
+        h("span", { className: "power-line__pct mono", text: `+${power.pct.toFixed(2)}%` }),
+        h("span", {
+          className: "power-line__note",
+          text: `healing, with the best ${ui.loc === "All" ? "" : `${ui.loc} `}item in every slot (${power.items} items)`,
+        })
+      );
+    }
 
     if (filtered.length === 0) {
       rowsContainer.appendChild(h("p", { className: "muted-note", text: "No upgrades in this filter." }));

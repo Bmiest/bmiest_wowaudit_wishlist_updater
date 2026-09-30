@@ -5,10 +5,11 @@ import httpx
 from wishlist_updater.drop_sources import (
     INSTANCE_DB_URL,
     ITEM_DB_URL,
+    item_slots,
     item_sources,
     parse_encounter_names,
 )
-from wishlist_updater.summary import add_drop_sources
+from wishlist_updater.summary import add_item_info
 
 # Trimmed from QE's src/Databases/InstanceDB.ts, keeping the shapes the parser relies on.
 INSTANCE_DB = """
@@ -60,8 +61,8 @@ export const retailInstanceDB: Record<string | number, any> = {
 """
 
 ITEM_DB = [
-    {"id": 268265, "sources": [{"instanceId": 1320, "encounterId": 2895}]},
-    {"id": 158366, "sources": [{"instanceId": -1, "encounterId": 1041}]},
+    {"id": 268265, "slot": "Neck", "sources": [{"instanceId": 1320, "encounterId": 2895}]},
+    {"id": 158366, "slot": "Finger", "sources": [{"instanceId": -1, "encounterId": 1041}]},
     {"id": 250000, "sources": [{"instanceId": -98, "encounterId": -98}]},  # Delves
     {"id": 250001, "sources": [{"instanceId": -4, "encounterId": 1}]},  # Crafted
     {
@@ -97,6 +98,11 @@ def test_item_sources_names_raid_and_dungeon_items_only():
     assert item_sources(ITEM_DB, names, {268265}) == {268265: "Ula'tek"}
 
 
+def test_item_slots_only_for_the_asked_items_that_have_one():
+    assert item_slots(ITEM_DB, {i["id"] for i in ITEM_DB}) == {268265: "Neck", 158366: "Finger"}
+    assert item_slots(ITEM_DB, {158366}) == {158366: "Finger"}
+
+
 def _characters():
     return [
         {
@@ -113,7 +119,7 @@ def _characters():
     ]
 
 
-def test_add_drop_sources_tags_every_result():
+def test_add_item_info_tags_every_result():
     def handler(request):
         if str(request.url) == INSTANCE_DB_URL:
             return httpx.Response(200, text=INSTANCE_DB)
@@ -123,15 +129,18 @@ def test_add_drop_sources_tags_every_result():
 
     characters = _characters()
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        add_drop_sources(characters, client)
+        add_item_info(characters, client)
     reports = characters[0]["reports"]
     assert [r["dropSource"] for r in reports[0]["results"]] == ["Ula'tek", None]
+    assert [r["slot"] for r in reports[0]["results"]] == ["Neck", None]
     assert reports[1]["results"][0]["dropSource"] == "Kings Rest"
+    assert reports[1]["results"][0]["slot"] == "Finger"
 
 
-def test_add_drop_sources_leaves_names_out_when_qe_is_unreachable():
+def test_add_item_info_leaves_names_and_slots_out_when_qe_is_unreachable():
     characters = _characters()
     with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(503))) as client:
-        add_drop_sources(characters, client)
+        add_item_info(characters, client)
     results = [r for rep in characters[0]["reports"] for r in rep["results"]]
     assert [r["dropSource"] for r in results] == [None, None, None]
+    assert [r["slot"] for r in results] == [None, None, None]

@@ -96,13 +96,17 @@ uv run pytest -m live                                    # hits real sites
 Every workflow run is published to https://bmiest.github.io/bmiest_wowaudit_wishlist_updater/,
 including failed and report-only runs. It shows the run history, the Heroic and Mythic reports
 with their top upgrades and the boss or dungeon each one drops from, and the gear you had
-equipped. The history lives on the `dashboard-data` branch, which keeps the newest 200 runs. The
-pipeline only records data there; `deploy-site.yml` is the one workflow that deploys the site.
+equipped. "Power to gain" adds up the biggest upgrade in every slot (the best two rings and
+trinkets; a two-hander or a one-hander plus off-hand), per difficulty and per source filter. QE
+rates each item against your current gear, so the total is an estimate, and it's a % of your
+healing: QE has no HPS numbers. The history lives on the `dashboard-data` branch, which keeps
+the newest 200 runs. The pipeline only records data there; `deploy-site.yml` is the one
+workflow that deploys the site.
 It runs after every pipeline run, whenever `site/` changes on `main` (no pipeline run, no
 WoWAudit upload), and on demand, and it always builds the latest `main` with the latest data.
 
 The site is public, so it only gets data that is public anyway: gear, QE report results and run
-status, plus boss and dungeon names from QE Live's public item database
+status, plus boss and dungeon names and item slots from QE Live's public item database
 ([Voulk/QuestionablyEpic](https://github.com/Voulk/QuestionablyEpic)). Your WoWAudit session,
 your wishlist and the raw `/simc` export never go there.
 

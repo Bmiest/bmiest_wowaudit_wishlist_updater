@@ -215,7 +215,7 @@ a:hover { text-decoration-color: var(--jade); }
 .muted-note { color: var(--ink-400); font-size: 14px; }
 
 /* ---- stat tiles ---------------------------------------------------------- */
-.tiles-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.tiles-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 .tile {
   background: var(--ink-800); border: 1px solid var(--ink-700);
   border-left: 2px solid var(--jade); padding: 16px 18px;
@@ -228,6 +228,7 @@ a:hover { text-decoration-color: var(--jade); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tile__big { font-size: 28px; font-weight: 600; color: var(--paper); line-height: 1.05; }
+.tile__big--jade { color: var(--jade); cursor: help; }
 .tile__muted { font-size: 13px; color: var(--ink-400); }
 .tile__slot { font-size: 11px; color: var(--ink-400); }
 .tile__crest-line { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; }
@@ -287,6 +288,17 @@ a.report-link:hover { color: var(--jade); }
 .report-panel { display: flex; flex-direction: column; gap: 16px; }
 
 .filter-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- power to gain: the report's best-per-slot total, follows the filter -- */
+.power-line {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  padding: 10px 14px; background: var(--jade-ghost); border-left: 2px solid var(--jade);
+  cursor: help;
+}
+.power-line[hidden] { display: none; }
+.power-line__label { font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-400); }
+.power-line__pct { font-size: 18px; font-weight: 600; color: var(--jade); }
+.power-line__note { font-size: 13px; color: var(--paper-dim); }
 
 .upgrade-rows { display: flex; flex-direction: column; }
 .upgrade-row {
@@ -433,6 +445,7 @@ a.report-link:hover { color: var(--jade); }
 /* ---- responsive: command-center reflow at ~1100px, single column below --- */
 @media (max-width: 1100px) {
   .tiles-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles-grid > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }
   .command-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "crests" "reports" "history";
