@@ -6,10 +6,10 @@ name: Update WoWAudit wishlists
 on:
   schedule:
     # Daily; the jitter job below starts the real work at a random time between
-    # 06:00 and 09:00 UTC, so the requests don't hit the same minute every day.
+    # 06:00 and 06:30 UTC, so the requests don't hit the same minute every day.
     # Only raid days (wishlist.toml upload_days) upload to WoWAudit.
     - cron: "0 6 * * *"
-    # Raid-day catch-up (Wed, Sun; starts 12:00-15:00 UTC): uploads only if the morning
+    # Raid-day catch-up (Wed, Sun; starts 12:00-12:30 UTC): uploads only if the morning
     # run didn't, so a failed morning upload is retried before the evening raid.
     - cron: "0 12 * * 0,3"
   workflow_dispatch:
@@ -35,19 +35,20 @@ permissions:
   contents: read
 
 # No workflow-level concurrency: the jitter wait must not hold a lock, or a manual run
-# started during it would queue for hours. The jobs that need exclusivity lock themselves.
+# started during it would queue until it ends. The jobs that need exclusivity lock themselves.
 
 jobs:
-  # Scheduled runs only: wait a random 0-180 min, so the daily run starts between 06:00
-  # and 09:00 UTC and the raid-day catch-up between 12:00 and 15:00 UTC.
+  # Scheduled runs only: wait a random 0-30 min, so the daily run starts between 06:00
+  # and 06:30 UTC and the raid-day catch-up between 12:00 and 12:30 UTC. Kept short:
+  # the waiting runner is free on this public repo, but a private one would pay for it.
   jitter:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
-    timeout-minutes: 190
+    timeout-minutes: 40
     steps:
-      - name: Random start within 3 hours of the scheduled time
+      - name: Random start within 30 minutes of the scheduled time
         run: |
-          delay=$(( $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % 10800 ))
+          delay=$(( $(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % 1800 ))
           echo "Starting in $(( delay / 60 )) min"
           sleep "$delay"
 

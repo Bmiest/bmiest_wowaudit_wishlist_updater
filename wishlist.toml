@@ -11,7 +11,7 @@ simc_source = "raiderio"
 crest_planner = true
 
 # Upload on raid days only (UTC weekdays): the wishlist is fresh for the raid, and WoWAudit
-# gets few uploads. The morning run (06:00-09:00 UTC) uploads; the 12:00 UTC catch-up run on
+# gets few uploads. The morning run (06:00-06:30 UTC) uploads; the 12:00 UTC catch-up run on
 # these days only uploads if the morning didn't. Other days still build the dashboard reports.
 # A pasted /simc export or force_upload always uploads.
 upload_days = ["Wednesday", "Sunday"]

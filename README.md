@@ -53,11 +53,11 @@ notes when that happened.
 ### 3. Runner
 
 The workflow (`.github/workflows/update-wishlists.yml`) runs every day, starting at a random time
-between 06:00 and 09:00 UTC, and you can also start it by hand from the Actions tab. Every run
+between 06:00 and 06:30 UTC, and you can also start it by hand from the Actions tab. Every run
 builds the reports for the dashboard, but it only uploads to WoWAudit on raid days
 (`upload_days`, currently Wednesday and Sunday, as UTC weekdays), so the wishlist is fresh for
 the raid and WoWAudit, which asked for a low number of uploads, gets about two a week.
-A catch-up run at 12:00-15:00 UTC on those days uploads only if the morning run didn't. A pasted
+A catch-up run at 12:00-12:30 UTC on those days uploads only if the morning run didn't. A pasted
 `/simc` export or the `force_upload` option uploads the `upload_difficulties` reports right away,
 on any day. A manual run can take a raw `/simc` export instead of using Raider.io, and that
 export includes your bags and currencies. (Without `upload_days`, a report is uploaded when its
