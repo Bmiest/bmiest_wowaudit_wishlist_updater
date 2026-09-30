@@ -351,6 +351,43 @@ def parse_simc_text(text: str) -> SimcProfile:
     return SimcProfile(text=text, name=name, class_token=class_token, spec_token=spec_token)
 
 
+_KEY_VALUE_WORD_RE = re.compile(r"^[a-z0-9_.]+=")
+
+
+def unflatten_simc(text: str) -> str:
+    """Put back the line breaks of a /simc export that was pasted into a one-line field.
+
+    The workflow's manual-run form only has one-line inputs, and browsers turn each line
+    break of a pasted text into a space (so a blank line becomes two). SimC values never
+    contain a space, so a line starts at every word that starts with `#` (a comment) and
+    at every `key=value` word, except when it's the first word after the `#`: that one is
+    part of the comment (`# loot_spec=holy`, a bag item's `# head=,id=...`).
+    Text that still has its line breaks comes back unchanged.
+    """
+    flat = text.strip()
+    if not flat or "\n" in flat:
+        return text
+    lines: list[str] = []
+    open_line = False  # False after a blank line: the next word starts a new line
+    for word in flat.split(" "):
+        if not word:
+            lines.append("")
+            open_line = False
+            continue
+        current = lines[-1] if open_line else ""
+        continues_comment = (
+            current.startswith("#")
+            and not word.startswith("#")
+            and not (" " in current and _KEY_VALUE_WORD_RE.match(word))
+        )
+        if continues_comment:
+            lines[-1] = f"{current} {word}"
+        else:
+            lines.append(word)
+            open_line = True
+    return "\n".join(lines) + "\n"
+
+
 async def _get_access_token(client: httpx.AsyncClient, client_id: str, client_secret: str) -> str:
     try:
         resp = await client.post(

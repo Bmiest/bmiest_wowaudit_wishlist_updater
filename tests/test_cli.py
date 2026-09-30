@@ -63,6 +63,18 @@ async def test_dry_run_skips_upload(uploads):
     assert uploads == []
 
 
+async def test_flattened_simc_export_reaches_qe_with_its_line_breaks(uploads):
+    seen = {}
+
+    async def generate(profile, qe_settings):
+        seen["text"] = profile.text
+        return REPORT_URL
+
+    outcome = await _process(ADDON_SIMC.replace("\n", " ").strip(), generate=generate)
+    assert outcome.error is None
+    assert seen["text"] == ADDON_SIMC
+
+
 async def test_non_healer_is_skipped(uploads):
     outcome = await _process(ADDON_SIMC.replace("spec=holy", "spec=shadow"))
     assert outcome.skipped and "healer" in outcome.skipped

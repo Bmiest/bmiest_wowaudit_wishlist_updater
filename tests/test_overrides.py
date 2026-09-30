@@ -174,6 +174,16 @@ def test_refresh_updates_after_a_swap(tmp_path, capsys):
     assert "updated (6 slots)" in capsys.readouterr().out
 
 
+def test_refresh_accepts_an_export_pasted_into_a_one_line_input(tmp_path):
+    """The workflow's manual-run form turns the export's line breaks into spaces."""
+    cfg = tmp_path / "wishlist.toml"
+    cfg.write_text(REPO_CONFIG.read_text())
+    simc = tmp_path / "export.txt"
+    simc.write_text(ADDON_SIMC.replace("\n", " ").strip() + "\n")
+    assert cli.main(["--config", str(cfg), "--refresh-overrides", str(simc)]) == 0
+    assert Config.load(cfg).characters[0].item_overrides == extract_overrides(ADDON_SIMC)
+
+
 def test_refresh_refuses_non_addon_exports(tmp_path):
     cfg = tmp_path / "wishlist.toml"
     cfg.write_text(REPO_CONFIG.read_text())

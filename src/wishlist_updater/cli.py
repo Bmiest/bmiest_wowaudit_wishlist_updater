@@ -21,6 +21,7 @@ from wishlist_updater.simc_source import (
     fetch_simc_from_blizzard,
     fetch_simc_from_raiderio,
     parse_simc_text,
+    unflatten_simc,
 )
 from wishlist_updater.upload_state import (
     fingerprint,
@@ -138,7 +139,7 @@ async def get_simc(
     character: Character, source: str, secrets: Secrets, simc_override: str | None
 ) -> SimcProfile:
     if simc_override is not None:
-        profile = parse_simc_text(simc_override)
+        profile = parse_simc_text(unflatten_simc(simc_override))
         if profile.name.lower() != character.name.lower():
             raise ConfigError(f"SimC export is for {profile.name!r}, not {character.name!r}")
         return profile
@@ -517,7 +518,7 @@ async def run(args: argparse.Namespace) -> int:
 def refresh_overrides(config_path: Path, simc_path: Path) -> int:
     from wishlist_updater.overrides import is_addon_export, replace_item_overrides
 
-    simc_text = simc_path.read_text(encoding="utf-8")
+    simc_text = unflatten_simc(simc_path.read_text(encoding="utf-8"))
     if not is_addon_export(simc_text):
         log.error(
             "%s is not an in-game SimulationCraft addon export (no '# SimC Addon' header). "

@@ -18,6 +18,7 @@ from wishlist_updater.simc_source import (
     fetch_simc_from_blizzard,
     fetch_simc_from_raiderio,
     parse_simc_text,
+    unflatten_simc,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "blizzard"
@@ -140,6 +141,38 @@ def test_parse_simc_text_reads_real_addon_export():
 def test_parse_simc_text_rejects_garbage(garbage):
     with pytest.raises(ValueError):
         parse_simc_text(garbage)
+
+
+# -- unflatten_simc ---------------------------------------------------------------
+
+
+def _flatten(text: str) -> str:
+    """What a browser makes of a multi-line paste into the workflow's one-line input."""
+    return text.replace("\n", " ").strip()
+
+
+def test_unflatten_restores_a_pasted_addon_export():
+    assert unflatten_simc(_flatten(ADDON_SIMC)) == ADDON_SIMC
+
+
+def test_unflatten_restores_the_great_vault_section():
+    vault = (
+        "### Weekly Reward Choices\n"
+        "#\n"
+        "# Gebbo's Bottomless Bag (334)\n"
+        "# trinket1=,id=270164,bonus_id=6652/13335/12854\n"
+        "#\n"
+        "### End of Weekly Reward Choices\n"
+    )
+    text = ADDON_SIMC.replace(
+        "### Additional Character Info", vault + "\n### Additional Character Info"
+    )
+    assert unflatten_simc(_flatten(text)) == text
+
+
+def test_unflatten_leaves_line_breaks_alone():
+    assert unflatten_simc(ADDON_SIMC) is ADDON_SIMC
+    assert unflatten_simc("") == ""
 
 
 # -- fetch_simc_from_blizzard: OAuth + API plumbing -------------------------------
