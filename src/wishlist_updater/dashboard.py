@@ -11,6 +11,7 @@ Usage: python -m wishlist_updater.dashboard SUMMARY_JSON DATA_DIR
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -20,9 +21,51 @@ KEEP_RUNS = 200
 _RUN_ID_RE = re.compile(r"^[0-9A-Za-z_-]{1,40}$")
 
 
+def results_digest(summary: dict) -> str:
+    """A short hash of what a run found: gear, each report's upgrades and the crest estimate.
+
+    Report ids differ on every run even when nothing changed, so the dashboard compares this
+    instead to fold runs with the same results into one history row.
+    """
+
+    def upgrades(report: dict) -> list:
+        rows = [
+            [r.get("item"), r.get("level"), r.get("dropType"), round(r["percDiff"], 4)]
+            for r in report.get("results") or []
+            if isinstance(r.get("percDiff"), (int, float)) and r["percDiff"] > 0
+        ]
+        return sorted(rows, key=json.dumps)
+
+    payload = [
+        {
+            "name": c.get("name"),
+            "error": bool(c.get("error")),
+            "gear": sorted(
+                [[g.get("slot"), g.get("item_id"), g.get("ilvl")] for g in c.get("gear") or []],
+                key=json.dumps,
+            ),
+            "reports": sorted(
+                [
+                    [r.get("difficulty"), bool(r.get("error")), upgrades(r)]
+                    for r in c.get("reports") or []
+                ],
+                key=json.dumps,
+            ),
+            "crest": [
+                [u.get("item_id"), u.get("rank"), u.get("gain_pct")]
+                for u in c.get("crest_upgrades") or []
+            ],
+        }
+        for c in summary.get("characters", [])
+    ]
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
+
+
 def run_header(summary: dict) -> dict:
     return {
         **summary["run"],
+        "digest": results_digest(summary),
         "characters": [
             {
                 "name": c["name"],
