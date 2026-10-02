@@ -124,6 +124,14 @@ def normalize_simc(simc: str) -> str:
     return simc.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
 
 
+def redact_simc(text: str, simc: str) -> str:
+    """Replace every non-trivial line of the SimC string in text, wherever it ended up."""
+    lines = {line.strip() for line in simc.splitlines()}
+    for line in sorted((line for line in lines if len(line) >= 12), key=len, reverse=True):
+        text = text.replace(line, "[simc redacted]")
+    return text
+
+
 def parse_simc_identity(simc: str) -> SimcIdentity:
     """Validate a SimC string against QE Live's import rules, before a browser is involved."""
     normalized = normalize_simc(simc)
@@ -277,7 +285,7 @@ async def generate_upgrade_report(
         await run.wait_until_report_saved(report_id)
     except Exception as exc:
         if artifacts_dir is not None:
-            await run.dump_artifacts(artifacts_dir, exc)
+            await run.dump_artifacts(artifacts_dir, exc, simc=identity.simc)
         raise QEError(f"QE Live failed while {run.step}: {exc}") from exc
     finally:
         page.remove_listener("pageerror", run.on_page_error)
@@ -473,8 +481,12 @@ class _Run:
                 )
             await asyncio.sleep(REPORT_POLL_INTERVAL_S)
 
-    async def dump_artifacts(self, artifacts_dir: Path, exc: BaseException) -> None:
-        """Save a screenshot, the page HTML and a log. Never masks the original error."""
+    async def dump_artifacts(self, artifacts_dir: Path, exc: BaseException, *, simc: str) -> None:
+        """Save a screenshot, the page HTML and a log. Never masks the original error.
+
+        The artifacts are downloadable from a public repo, so the SimC string (bags,
+        currencies) is cleared from the page and scrubbed from the HTML first.
+        """
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         slug = re.sub(r"[^a-z0-9]+", "-", self.step.lower()).strip("-")
         stem = artifacts_dir / f"qe-{stamp}-{slug}"
@@ -487,7 +499,11 @@ class _Run:
                 *self.page_errors,
             ]
             stem.with_suffix(".log").write_text("\n".join(details) + "\n")
-            stem.with_suffix(".html").write_text(await self.page.content())
+            await self.page.evaluate(
+                "document.querySelectorAll('textarea').forEach(t => {"
+                " t.value = ''; t.textContent = ''; })"
+            )
+            stem.with_suffix(".html").write_text(redact_simc(await self.page.content(), simc))
             await self.page.screenshot(path=stem.with_suffix(".png"), full_page=True)
             log.error("QE Live failure artifacts saved to %s.*", stem)
         except Exception:
