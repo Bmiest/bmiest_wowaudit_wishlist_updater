@@ -65,8 +65,12 @@ jobs:
     timeout-minutes: 30
     # The Playwright image ships Chromium plus its system deps, so the runner host
     # needs only Docker. The tag must match the playwright pin in pyproject.toml.
+    # Pinned by digest because this job sees the repo secrets and nothing bumps it
+    # automatically: when you raise playwright, look up the new tag's digest too
+    # (curl -sI https://mcr.microsoft.com/v2/playwright/python/manifests/<tag> with an
+    # OCI index Accept header, then read docker-content-digest).
     container:
-      image: mcr.microsoft.com/playwright/python:v1.63.0-noble
+      image: mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
       options: --init --ipc=host
     env:
       UV_PYTHON_PREFERENCE: only-system
