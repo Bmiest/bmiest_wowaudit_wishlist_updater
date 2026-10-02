@@ -24,7 +24,6 @@ const CONFIG = {
   characterSpecByName: {
     Shiftheal: "Holy Priest",
   },
-  unknownSpecLabel: "Unknown spec",
 };
 
 // ---------------------------------------------------------------------
@@ -147,7 +146,7 @@ function specLabel(character) {
   // "constructor" doesn't pick up Object.prototype.
   return Object.hasOwn(CONFIG.characterSpecByName, name)
     ? CONFIG.characterSpecByName[name]
-    : CONFIG.unknownSpecLabel;
+    : t("unknownSpec");
 }
 
 function parseDate(iso) {
@@ -155,60 +154,44 @@ function parseDate(iso) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function relativeTime(iso) {
   const d = parseDate(iso);
-  if (!d) return "unknown time";
+  if (!d) return t("unknownTime");
   const diffMs = Math.max(0, Date.now() - d.getTime());
   const sec = Math.round(diffMs / 1000);
   const min = Math.round(sec / 60);
   const hr = Math.round(min / 60);
   const day = Math.round(hr / 24);
-  if (sec < 45) return "just now";
-  if (min < 60) return `${min} minute${min === 1 ? "" : "s"} ago`;
-  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
-  if (day < 30) return `${day} day${day === 1 ? "" : "s"} ago`;
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  if (sec < 45) return t("justNow");
+  const rtf = new Intl.RelativeTimeFormat(locale(), { numeric: "always" });
+  if (min < 60) return rtf.format(-min, "minute");
+  if (hr < 24) return rtf.format(-hr, "hour");
+  if (day < 30) return rtf.format(-day, "day");
+  return d.toLocaleDateString(locale(), { year: "numeric", month: "short", day: "numeric" });
 }
 
 function absoluteTime(iso) {
   const d = parseDate(iso);
   if (!d) return String(iso);
-  return d.toLocaleString(undefined, { dateStyle: "full", timeStyle: "medium" });
+  return d.toLocaleString(locale(), { dateStyle: "full", timeStyle: "medium" });
 }
 
-const TRIGGER_LABELS = {
-  schedule: "Scheduled",
-  workflow_dispatch: "Manual run",
-  local: "Local run",
-};
+const TRIGGERS = new Set(["schedule", "workflow_dispatch", "local"]);
 
 function triggerLabel(trigger) {
-  return TRIGGER_LABELS[trigger] || (trigger ? String(trigger) : "Unknown trigger");
+  if (TRIGGERS.has(trigger)) return t(`trigger_${trigger}`);
+  return trigger ? String(trigger) : t("unknownTrigger");
 }
 
-const SLOT_LABELS = {
-  head: "Head",
-  neck: "Neck",
-  shoulder: "Shoulders",
-  back: "Back",
-  chest: "Chest",
-  shirt: "Shirt",
-  tabard: "Tabard",
-  wrist: "Wrists",
-  hands: "Hands",
-  waist: "Waist",
-  legs: "Legs",
-  feet: "Feet",
-  finger1: "Ring 1",
-  finger2: "Ring 2",
-  trinket1: "Trinket 1",
-  trinket2: "Trinket 2",
-  main_hand: "Main hand",
-  off_hand: "Off hand",
-};
+const SLOTS = new Set([
+  "head", "neck", "shoulder", "back", "chest", "shirt", "tabard", "wrist", "hands", "waist",
+  "legs", "feet", "finger1", "finger2", "trinket1", "trinket2", "main_hand", "off_hand",
+]);
 
 function slotLabel(slot) {
-  return SLOT_LABELS[slot] || capitalize(String(slot || "").replace(/_/g, " "));
+  return SLOTS.has(slot) ? t(`slot_${slot}`) : capitalize(String(slot || "").replace(/_/g, " "));
 }
 
 // Dungeon dropDifficulty is a Mythic+ key index, per the pipeline's spec.
@@ -219,7 +202,7 @@ function sourceLabel(dropLoc, dropDifficulty) {
     if (dropDifficulty === 2) return "Raid · Heroic";
     if (dropDifficulty === 3) return "Raid · Mythic";
     if (dropDifficulty !== null && dropDifficulty !== undefined && dropDifficulty !== "") {
-      return `Raid · difficulty ${dropDifficulty}`;
+      return t("raidDifficulty", { d: dropDifficulty });
     }
     return "Raid";
   }
@@ -232,7 +215,7 @@ function sourceLabel(dropLoc, dropDifficulty) {
   }
   if (dropLoc === "Delves") return "Delves";
   if (dropLoc === "Crafted") return "Crafted";
-  return dropLoc ? String(dropLoc) : "Unknown source";
+  return dropLoc ? String(dropLoc) : t("unknownSource");
 }
 
 // dropSource is the raid boss or dungeon name, from QE's item database (runs
@@ -306,10 +289,6 @@ function computePowerToGain(upgrades) {
   return { pct: sum(picked), items: picked.length };
 }
 
-const POWER_TO_GAIN_HINT =
-  "The biggest upgrade in every slot added up (the best two rings and trinkets; " +
-  "a two-hander or a one-hander plus off-hand). QE rates each item against your " +
-  "current gear, so this is an estimate. QE gives % of your healing, not HPS.";
 
 /** The 16 gear slots that make up "average item level" -- shirt and tabard
  * are cosmetic and don't count. */
@@ -345,7 +324,8 @@ function reportLinksRow(reports, className) {
       className: `report-link${r.error ? " report-link--fail" : ""}${uploaded ? " report-link--up" : ""}`,
     });
     if (uploaded) link.appendChild(h("span", { className: "report-link__check", text: " ✓" }));
-    link.setAttribute("title", r.error ? `${diff}: error` : `${diff} report${uploaded ? ", uploaded" : ""}`);
+    const title = r.error ? "reportError" : uploaded ? "reportTitleUploaded" : "reportTitle";
+    link.setAttribute("title", t(title, { diff }));
     link.addEventListener("click", (e) => e.stopPropagation()); // don't also open the run
     row.appendChild(link);
   }
@@ -467,6 +447,9 @@ const state = {
   reportUi: new Map(), // "charIdx:difficulty" -> { loc, expanded }
   reportsTab: "Mythic", // shared tab selection for the single reports card
   historyExpanded: false,
+  openGroups: new Set(), // history groups (by their newest run id) unfolded by the user
+  runData: null, // the displayed run's full summary, kept to re-render on a language switch
+  previousRuns: new Map(), // run id -> promise of its full summary (null if it failed to load)
 };
 
 function reportUiFor(key) {
@@ -506,7 +489,7 @@ function renderHeader(indexData) {
   const runs = Array.isArray(indexData.runs) ? indexData.runs : [];
   const latest = runs[0];
   if (!latest) {
-    els.headerStatus.appendChild(h("span", { className: "pill pill--muted", text: "No runs yet" }));
+    els.headerStatus.appendChild(h("span", { className: "pill pill--muted", text: t("noRuns") }));
     els.headerUpdated.textContent = "";
     return;
   }
@@ -518,26 +501,26 @@ function renderHeader(indexData) {
 
   const statusPill = h("span", {
     className: `pill ${latest.ok ? "pill--ok" : "pill--fail"}`,
-    text: latest.ok ? "Latest run OK" : "Latest run failed",
+    text: latest.ok ? t("latestOk") : t("latestFailed"),
   });
   els.headerStatus.appendChild(statusPill);
 
   const ghUrl = isGithubUrl(latest.url);
   if (ghUrl) {
     els.headerStatus.appendChild(
-      linkOrText(ghUrl, "View on GitHub", { className: "pill pill--link" })
+      linkOrText(ghUrl, t("viewOnGithub"), { className: "pill pill--link" })
     );
   }
 
   const when = latest.finished_at || latest.started_at;
-  els.headerUpdated.textContent = `updated ${relativeTime(when)}`;
+  els.headerUpdated.textContent = t("updated", { when: relativeTime(when) });
   els.headerUpdated.setAttribute("title", absoluteTime(when));
 }
 
 function characterCapsule(character) {
   const { name, realm, region } = character;
   const rr = realmRegionLabel(realm, region);
-  const parts = [name || "Unknown character", specLabel(character)];
+  const parts = [name || t("unknownCharacter"), specLabel(character)];
   if (rr) parts.push(rr);
   return h("span", { className: "capsule" }, [
     h("span", { className: "capsule__dot" }),
@@ -551,24 +534,46 @@ function characterCapsule(character) {
 // ---------------------------------------------------------------------
 const HISTORY_VISIBLE = 8;
 
+/** Fold runs in a row that found the same (same digest, same OK/failed) into one group,
+ * newest first. Runs from before the index carried a digest each stay on their own. */
+function groupRuns(runs) {
+  const groups = [];
+  for (const run of runs) {
+    const last = groups[groups.length - 1];
+    const head = last && last[0];
+    const same =
+      head &&
+      typeof run.digest === "string" &&
+      run.digest === head.digest &&
+      Boolean(run.ok) === Boolean(head.ok);
+    if (same) last.push(run);
+    else groups.push([run]);
+  }
+  return groups;
+}
+
 function renderHistory(indexData) {
   clear(els.historyContainer);
   clear(els.historyShowMoreWrap);
   const runs = Array.isArray(indexData.runs) ? indexData.runs : [];
   if (runs.length === 0) {
-    els.historyContainer.appendChild(h("p", { className: "muted-note", text: "No runs recorded yet." }));
+    els.historyContainer.appendChild(h("p", { className: "muted-note", text: t("noRunsRecorded") }));
     return;
   }
 
-  const shown = state.historyExpanded ? runs : runs.slice(0, HISTORY_VISIBLE);
-  shown.forEach((run) => {
-    els.historyContainer.appendChild(historyRow(run));
+  const groups = groupRuns(runs);
+  const shown = state.historyExpanded ? groups : groups.slice(0, HISTORY_VISIBLE);
+  shown.forEach((group) => {
+    const [head, ...rest] = group;
+    const open = state.openGroups.has(head.id);
+    els.historyContainer.appendChild(historyRow(head, rest.length ? { count: rest.length, open } : null));
+    if (open) rest.forEach((run) => els.historyContainer.appendChild(historyRow(run, null, true)));
   });
 
-  if (runs.length > HISTORY_VISIBLE) {
+  if (groups.length > HISTORY_VISIBLE) {
     const btn = h("button", {
       className: "pill pill--action",
-      text: state.historyExpanded ? "Show fewer" : `Show all ${runs.length}`,
+      text: state.historyExpanded ? t("showFewer") : t("showAll", { n: runs.length }),
       attrs: { type: "button" },
     });
     btn.addEventListener("click", () => {
@@ -581,9 +586,11 @@ function renderHistory(indexData) {
   updateHistorySelectionUI();
 }
 
-function historyRow(run) {
+/** One history row. `fold` ({count, open}) adds the "+N runs with the same results" toggle
+ * to a group's newest run; `nested` marks a run shown inside an unfolded group. */
+function historyRow(run, fold, nested) {
   const row = h("div", {
-    className: "history-row",
+    className: `history-row${nested ? " history-row--nested" : ""}`,
     attrs: { tabindex: "0", role: "link", "data-run-id": run.id },
   });
   row.addEventListener("click", () => navigateToRun(run.id));
@@ -604,12 +611,31 @@ function historyRow(run) {
   );
   row.appendChild(h("span", { className: "history-row__trigger", text: triggerLabel(run.trigger) }));
   row.appendChild(
-    h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? "OK" : "Failed" })
+    h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? t("ok") : t("failed") })
   );
 
   const chars = Array.isArray(run.characters) ? run.characters : [];
   const allReports = chars.flatMap((c) => (Array.isArray(c.reports) ? c.reports : []));
   row.appendChild(reportLinksRow(allReports));
+
+  if (fold) {
+    const toggle = h("button", {
+      className: `history-fold${fold.open ? " is-open" : ""}`,
+      text: t("sameResults", { n: fold.count }),
+      attrs: {
+        type: "button",
+        "aria-expanded": String(fold.open),
+        title: fold.open ? t("sameResultsHide") : null,
+      },
+    });
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation(); // fold/unfold only, don't also open the run
+      if (state.openGroups.has(run.id)) state.openGroups.delete(run.id);
+      else state.openGroups.add(run.id);
+      renderHistory(state.index);
+    });
+    row.appendChild(toggle);
+  }
 
   const ghUrl = isGithubUrl(run.url);
   const footLink = linkOrText(ghUrl, "GitHub ↗", { className: "history-row__gh" });
@@ -635,18 +661,18 @@ function updateHistorySelectionUI() {
 function renderViewingBanner(runId, isLatest) {
   clear(els.viewingBanner);
   document.getElementById("reportsHeading").textContent = isLatest
-    ? "Latest reports"
-    : "Reports from this run";
+    ? t("latestReports")
+    : t("reportsFromRun");
   if (isLatest) {
     els.viewingBanner.hidden = true;
     return;
   }
   els.viewingBanner.hidden = false;
-  els.viewingBanner.appendChild(h("span", { text: "Viewing run " }));
+  els.viewingBanner.appendChild(h("span", { text: t("viewingRun") }));
   els.viewingBanner.appendChild(h("b", { className: "mono", text: runId }));
   const backBtn = h("button", {
     className: "pill pill--action",
-    text: "Back to latest",
+    text: t("backToLatest"),
     attrs: { type: "button" },
   });
   backBtn.addEventListener("click", navigateToLatest);
@@ -717,7 +743,7 @@ function renderTiles(fullData) {
   const character = (fullData.characters || [])[0];
   if (!character) {
     els.tilesContainer.appendChild(
-      h("p", { className: "muted-note", text: "No character data for this run." })
+      h("p", { className: "muted-note", text: t("noCharacterData") })
     );
     return;
   }
@@ -734,7 +760,7 @@ function tileBestMythic(character) {
   const mythic = reports.find((r) => r.difficulty === "Mythic");
   const upgrades = mythic ? computeUpgrades(mythic.results) : [];
   if (upgrades.length === 0) {
-    return tile("Best Mythic upgrade", [h("span", { className: "tile__muted", text: "No upgrades found" })]);
+    return tile(t("bestMythicUpgrade"), [h("span", { className: "tile__muted", text: t("noUpgrades") })]);
   }
   const top = upgrades[0];
   const url = wowheadItemUrl(top.item, null, top.level);
@@ -742,49 +768,62 @@ function tileBestMythic(character) {
   const boss = dropSourceName(top);
   const detail = h("div", { className: "tile__detail" }, [
     h("span", { className: "pill pill--ilvl mono", text: Number.isFinite(top.level) ? String(top.level) : "?" }),
-    h("span", { className: "tile__pct mono", text: `+${top.percDiff.toFixed(2)}%` }),
+    h("span", { className: "tile__pct mono", text: fmtPct(top.percDiff) }),
     boss ? h("span", { className: "tile__rank", text: boss }) : null,
   ]);
-  return tile("Best Mythic upgrade", [link, detail]);
+  return tile(t("bestMythicUpgrade"), [link, detail]);
 }
 
 function tilePowerToGain(character) {
-  const label = "Mythic power to gain";
+  const label = t("mythicPowerToGain");
   const reports = Array.isArray(character.reports) ? character.reports : [];
   const mythic = reports.find((r) => r.difficulty === "Mythic");
   const upgrades = mythic ? computeUpgrades(mythic.results) : [];
   if (upgrades.length === 0) {
-    return tile(label, [h("span", { className: "tile__muted", text: "No upgrades found" })]);
+    return tile(label, [h("span", { className: "tile__muted", text: t("noUpgrades") })]);
   }
   const power = computePowerToGain(upgrades);
   if (!power) {
-    return tile(label, [h("span", { className: "tile__muted", text: "Not in this run's data" })]);
+    return tile(label, [h("span", { className: "tile__muted", text: t("notInRunData") })]);
   }
   return tile(label, [
     h("span", {
       className: "tile__big tile__big--jade mono",
-      text: `+${power.pct.toFixed(2)}%`,
-      attrs: { title: POWER_TO_GAIN_HINT },
+      text: fmtPct(power.pct),
+      attrs: { title: t("powerHint") },
     }),
     h("span", {
       className: "tile__muted",
-      text: `healing, with the best item in every slot (${power.items} items)`,
+      text: t("powerNote", { n: power.items }),
     }),
   ]);
 }
 
+/** Crest upgrades worth showing: a gain above zero, or no estimate at all (still unknown).
+ * A +0.00% item costs crests for nothing, so it's left out. */
+function usefulCrestUpgrades(upgrades) {
+  return upgrades.filter((u) => {
+    const g = numOrNull(u.gain_pct);
+    return g === null || g > 0;
+  });
+}
+
 function tileNextCrest(character) {
+  const label = t("nextCrest");
   const upgrades = character.crest_upgrades;
   if (upgrades === null || upgrades === undefined) {
-    return tile("Next crest", [h("span", { className: "tile__muted", text: "No estimate" })]);
+    return tile(label, [h("span", { className: "tile__muted", text: t("noEstimate") })]);
   }
   if (!Array.isArray(upgrades) || upgrades.length === 0) {
-    return tile("Next crest", [h("span", { className: "tile__muted", text: "All upgraded" })]);
+    return tile(label, [h("span", { className: "tile__muted", text: t("allUpgraded") })]);
   }
-  const u = upgrades[0];
+  const useful = usefulCrestUpgrades(upgrades);
+  if (useful.length === 0) {
+    return tile(label, [h("span", { className: "tile__muted", text: t("nothingWorthCrest") })]);
+  }
+  const u = useful[0];
   const url = wowheadItemUrl(u.item_id, null, u.level);
-  const label = cachedItemLabel(u.item_id, u.name);
-  const link = linkOrText(url, label, { className: "tile__link" });
+  const link = linkOrText(url, cachedItemLabel(u.item_id, u.name), { className: "tile__link" });
   const line = h("div", { className: "tile__crest-line" }, [
     h("span", { className: "tile__slot", text: `${slotLabel(String(u.slot || "").toLowerCase())} · ` }),
     link,
@@ -794,31 +833,31 @@ function tileNextCrest(character) {
   const detail = h("div", { className: "tile__detail" }, [
     h("span", { className: "tile__rank mono", text: `${rank === null ? "?" : rank}/6 → 6/6` }),
     gain === null
-      ? h("span", { className: "tile__muted", text: "no estimate" })
-      : h("span", { className: "tile__pct tile__pct--gold mono", text: `+${gain.toFixed(2)}%` }),
+      ? h("span", { className: "tile__muted", text: t("noEstimateLower") })
+      : h("span", { className: "tile__pct tile__pct--gold mono", text: fmtPct(gain) }),
   ]);
-  return tile("Next crest", [line, detail]);
+  return tile(label, [line, detail]);
 }
 
 function tileAvgIlvl(character) {
   const { avg, count, total } = computeAvgIlvl(character.gear);
   const body = [h("span", { className: "tile__big mono", text: avg === null ? "?" : String(avg) })];
   if (count < total) {
-    body.push(h("span", { className: "tile__muted", text: `based on ${count} of ${total} slots` }));
+    body.push(h("span", { className: "tile__muted", text: t("basedOnSlots", { count, total }) }));
   }
-  return tile("Avg ilvl", body);
+  return tile(t("avgIlvl"), body);
 }
 
 function tileLastRun(run, character) {
-  if (!run) return tile("Last run", [h("span", { className: "tile__muted", text: "Unknown" })]);
+  if (!run) return tile(t("lastRun"), [h("span", { className: "tile__muted", text: t("unknown") })]);
   const when = run.finished_at || run.started_at;
   const body = [
     h("span", { className: "tile__big", text: relativeTime(when), attrs: { title: absoluteTime(when) } }),
     h("div", { className: "tile__detail" }, [
-      h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? "OK" : "Failed" }),
+      h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? t("ok") : t("failed") }),
     ]),
   ];
-  return tile("Last run", body);
+  return tile(t("lastRun"), body);
 }
 
 // ---------------------------------------------------------------------
@@ -832,7 +871,7 @@ function renderReportsCard(character, charIdx) {
     els.reportsContainer.appendChild(errorCapsule(character.error));
   }
   if (character.skipped) {
-    const label = typeof character.skipped === "string" ? `Skipped: ${character.skipped}` : "Skipped";
+    const label = typeof character.skipped === "string" ? t("skippedWhy", { why: character.skipped }) : t("skipped");
     els.reportsContainer.appendChild(h("span", { className: "pill pill--muted", text: label }));
   }
   if (Array.isArray(character.warnings) && character.warnings.length > 0) {
@@ -842,14 +881,14 @@ function renderReportsCard(character, charIdx) {
   }
 
   if (reports.length === 0) {
-    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: "No reports for this run." }));
+    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: t("noReports") }));
     return;
   }
 
   const byDiff = new Map(reports.map((r) => [r.difficulty, r]));
   const available = REPORT_DIFFICULTIES.filter((d) => byDiff.has(d));
   if (available.length === 0) {
-    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: "No reports for this run." }));
+    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: t("noReports") }));
     return;
   }
   if (!available.includes(state.reportsTab)) state.reportsTab = available[available.length - 1];
@@ -864,7 +903,7 @@ function renderReportsCard(character, charIdx) {
   const tabIds = available.map((d) => `tab-${charIdx}-${d}`);
   const panelIds = available.map((d) => `panel-${charIdx}-${d}`);
 
-  const tablist = h("div", { className: "tablist", attrs: { role: "tablist", "aria-label": "Report difficulty" } });
+  const tablist = h("div", { className: "tablist", attrs: { role: "tablist", "aria-label": t("reportDifficulty") } });
   const tabButtons = [];
   available.forEach((diff, i) => {
     const selected = diff === state.reportsTab;
@@ -921,6 +960,8 @@ function onTabKeydown(e, available, i, character, charIdx) {
 function selectReportsTab(character, charIdx, diff) {
   state.reportsTab = diff;
   renderReportsCard(character, charIdx);
+  renderPaperdoll(character); // its per-slot upgrades follow the open tab
+  refreshWowheadLinks();
 }
 
 function reportPanelContent(report, key) {
@@ -928,12 +969,14 @@ function reportPanelContent(report, key) {
 
   const headRow = h("div", { className: "report-card__head" });
   const url = isReportUrl(report.report_url);
-  headRow.appendChild(linkOrText(url, "Open report ↗", { className: "report-card__link" }));
+  headRow.appendChild(linkOrText(url, t("openReport"), { className: "report-card__link" }));
 
   if (report.error) {
-    headRow.appendChild(h("span", { className: "pill pill--fail", text: "Error" }));
+    headRow.appendChild(h("span", { className: "pill pill--fail", text: t("error") }));
   }
   frag.appendChild(headRow);
+
+  if (!report.error) frag.appendChild(changesBlock(report.difficulty));
 
   if (report.error) {
     frag.appendChild(h("p", { className: "report-card__error", text: String(report.error) }));
@@ -947,7 +990,7 @@ function reportPanelContent(report, key) {
   DROP_LOC_FILTERS.forEach((loc) => {
     const btn = h("button", {
       className: "pill pill--filter",
-      text: loc,
+      text: loc === "All" ? t("filter_All") : loc,
       attrs: { type: "button", "aria-pressed": String(loc === ui.loc) },
     });
     btn.addEventListener("click", () => {
@@ -965,7 +1008,7 @@ function reportPanelContent(report, key) {
   frag.appendChild(filterRow);
 
   // Follows the tab and the filter: "all Raid upgrades together are worth ...".
-  const powerLine = h("p", { className: "power-line", attrs: { title: POWER_TO_GAIN_HINT } });
+  const powerLine = h("p", { className: "power-line", attrs: { title: t("powerHint") } });
   frag.appendChild(powerLine);
 
   const rowsContainer = h("div", { className: "upgrade-rows" });
@@ -986,17 +1029,20 @@ function reportPanelContent(report, key) {
     powerLine.hidden = !power;
     if (power) {
       powerLine.append(
-        h("span", { className: "power-line__label", text: "Power to gain" }),
-        h("span", { className: "power-line__pct mono", text: `+${power.pct.toFixed(2)}%` }),
+        h("span", { className: "power-line__label", text: t("powerToGain") }),
+        h("span", { className: "power-line__pct mono", text: fmtPct(power.pct) }),
         h("span", {
           className: "power-line__note",
-          text: `healing, with the best ${ui.loc === "All" ? "" : `${ui.loc} `}item in every slot (${power.items} items)`,
+          text:
+            ui.loc === "All"
+              ? t("powerNote", { n: power.items })
+              : t("powerNoteLoc", { n: power.items, loc: ui.loc }),
         })
       );
     }
 
     if (filtered.length === 0) {
-      rowsContainer.appendChild(h("p", { className: "muted-note", text: "No upgrades in this filter." }));
+      rowsContainer.appendChild(h("p", { className: "muted-note", text: t("noUpgradesFilter") }));
       return;
     }
 
@@ -1007,7 +1053,7 @@ function reportPanelContent(report, key) {
     if (filtered.length > TOP_N) {
       const toggleBtn = h("button", {
         className: "pill pill--action",
-        text: ui.expanded ? `Show top ${TOP_N}` : `Show all ${filtered.length}`,
+        text: ui.expanded ? t("showTop", { n: TOP_N }) : t("showAll", { n: filtered.length }),
         attrs: { type: "button" },
       });
       toggleBtn.addEventListener("click", () => {
@@ -1057,7 +1103,7 @@ function upgradeRow(upgrade, maxPct) {
     ilvlPill,
     source,
     track,
-    h("span", { className: "upgrade-row__pct mono", text: `+${upgrade.percDiff.toFixed(2)}%` }),
+    h("span", { className: "upgrade-row__pct mono", text: fmtPct(upgrade.percDiff) }),
   ]);
 }
 
@@ -1073,30 +1119,35 @@ function renderCrestSidebar(character) {
   const report = character.crest_report;
   if (report && typeof report === "object") {
     const url = isReportUrl(report.report_url);
-    const link = linkOrText(url, "Crest report ↗", { className: "report-card__link" });
+    const link = linkOrText(url, t("crestReport"), { className: "report-card__link" });
     if (typeof report.difficulty === "string" && report.difficulty) {
-      link.setAttribute("title", `${report.difficulty} crest report`);
+      link.setAttribute("title", t("crestReportTitle", { diff: report.difficulty }));
     }
     els.crestContainer.appendChild(h("div", { className: "report-card__head" }, [link]));
   }
 
   const upgrades = character.crest_upgrades;
   if (upgrades === null || upgrades === undefined) {
-    els.crestContainer.appendChild(h("p", { className: "muted-note", text: "No crest estimate for this run." }));
+    els.crestContainer.appendChild(h("p", { className: "muted-note", text: t("noCrestEstimate") }));
     return;
   }
   if (!Array.isArray(upgrades) || upgrades.length === 0) {
-    els.crestContainer.appendChild(h("p", { className: "muted-note", text: "Everything is fully upgraded." }));
+    els.crestContainer.appendChild(h("p", { className: "muted-note", text: t("fullyUpgraded") }));
+    return;
+  }
+  const useful = usefulCrestUpgrades(upgrades);
+  if (useful.length === 0) {
+    els.crestContainer.appendChild(h("p", { className: "muted-note", text: t("noCrestGain") }));
     return;
   }
 
-  const maxGain = upgrades.reduce((m, u) => {
+  const maxGain = useful.reduce((m, u) => {
     const g = numOrNull(u.gain_pct);
     return g !== null && g > m ? g : m;
   }, 0.0001);
 
   const list = h("div", { className: "crest-compact-list" });
-  upgrades.forEach((u) => list.appendChild(crestCompactRow(u, maxGain)));
+  useful.forEach((u) => list.appendChild(crestCompactRow(u, maxGain)));
   els.crestContainer.appendChild(list);
 }
 
@@ -1116,7 +1167,7 @@ function crestCompactRow(u, maxGain) {
   const gain = numOrNull(u.gain_pct);
   const barRow = h("div", { className: "crest-compact-row__bar-row" });
   if (gain === null) {
-    barRow.appendChild(h("span", { className: "muted-note", text: "No estimate" }));
+    barRow.appendChild(h("span", { className: "muted-note", text: t("noEstimate") }));
   } else {
     const pct = Math.max(2, Math.min(100, (gain / maxGain) * 100));
     const track2 = h("div", { className: "bar-track" });
@@ -1124,25 +1175,198 @@ function crestCompactRow(u, maxGain) {
     fill.style.width = `${pct}%`;
     track2.appendChild(fill);
     barRow.appendChild(track2);
-    barRow.appendChild(h("span", { className: "crest-row__pct mono", text: `+${gain.toFixed(2)}%` }));
+    barRow.appendChild(h("span", { className: "crest-row__pct mono", text: fmtPct(gain) }));
   }
 
   return h("div", { className: "crest-compact-row" }, [link, meta, barRow]);
 }
 
 // ---------------------------------------------------------------------
-// Gear: WoW-style paper doll.
+// "Since the previous run": upgrades that appeared or dropped out of this
+// report, and gear that changed, against the closest older run with a
+// working report for the same difficulty. The older run is fetched once.
 // ---------------------------------------------------------------------
-const PAPERDOLL_LEFT = ["head", "neck", "shoulder", "back", "chest", "shirt", "tabard", "wrist"];
-const PAPERDOLL_RIGHT = ["hands", "waist", "legs", "feet", "finger1", "finger2", "trinket1", "trinket2"];
-const PAPERDOLL_WEAPONS = ["main_hand", "off_hand"];
-const DIMMED_SLOTS = new Set(["shirt", "tabard"]);
 
-function paperdollSlot(slot, bySlot) {
+/** The closest run older than `runId` in the index with an error-free `difficulty` report. */
+function previousRunWith(runId, difficulty) {
+  const runs = state.index && Array.isArray(state.index.runs) ? state.index.runs : [];
+  const at = runs.findIndex((r) => r.id === runId);
+  if (at < 0) return null;
+  for (const run of runs.slice(at + 1)) {
+    const chars = Array.isArray(run.characters) ? run.characters : [];
+    const reports = chars[0] && Array.isArray(chars[0].reports) ? chars[0].reports : [];
+    if (reports.some((r) => r.difficulty === difficulty && !r.error)) return run;
+  }
+  return null;
+}
+
+/** The run's full summary, or null if it can't be loaded. Cached as a promise, so both
+ * report tabs asking at once share one request. */
+function loadPreviousRun(id) {
+  if (!state.previousRuns.has(id)) {
+    const url = runDataUrl(id);
+    state.previousRuns.set(id, url ? fetchJson(url).catch(() => null) : Promise.resolve(null));
+  }
+  return state.previousRuns.get(id);
+}
+
+/** Diff two runs' first character: upgrades by item id (positive gains only) and gear by slot. */
+function diffRuns(current, previous, difficulty) {
+  const upgradesOf = (character) => {
+    const reports = character && Array.isArray(character.reports) ? character.reports : [];
+    const report = reports.find((r) => r.difficulty === difficulty);
+    return new Map(computeUpgrades(report ? report.results : []).map((u) => [u.item, u]));
+  };
+  const now = upgradesOf(current);
+  const before = upgradesOf(previous);
+  const added = [...now.values()].filter((u) => !before.has(u.item));
+  const removed = [...before.values()].filter((u) => !now.has(u.item));
+
+  const gearOf = (character) =>
+    new Map((character && Array.isArray(character.gear) ? character.gear : []).map((g) => [g.slot, g]));
+  const gearNow = gearOf(current);
+  const gearBefore = gearOf(previous);
+  const gear = [];
+  for (const slot of ILVL_SLOTS) {
+    const a = gearBefore.get(slot);
+    const b = gearNow.get(slot);
+    if (!a || !b) continue;
+    if (a.item_id !== b.item_id || a.ilvl !== b.ilvl) gear.push({ slot, before: a, after: b });
+  }
+  return { added, removed, gear };
+}
+
+function changesBlock(difficulty) {
+  const box = h("div", { className: "changes" });
+  const data = state.runData;
+  const runId = data && data.run ? data.run.id : null;
+  const prev = runId ? previousRunWith(runId, difficulty) : null;
+  if (!prev) {
+    box.appendChild(h("span", { className: "changes__title", text: t("sincePrevious") }));
+    box.appendChild(h("p", { className: "changes__none", text: t("noPrevious") }));
+    return box;
+  }
+  box.appendChild(
+    h("span", {
+      className: "changes__title",
+      text: t("sincePreviousWhen", { when: relativeTime(prev.started_at) }),
+      attrs: { title: absoluteTime(prev.started_at) },
+    })
+  );
+  const body = h("div", { className: "changes__body" });
+  box.appendChild(body);
+
+  loadPreviousRun(prev.id).then((previous) => {
+    // The page may have moved on (another run, another tab) while this loaded.
+    if (!box.isConnected) return;
+    if (!previous) {
+      body.appendChild(h("p", { className: "changes__none", text: t("previousUnavailable") }));
+      return;
+    }
+    const current = (data.characters || [])[0];
+    const { added, removed, gear } = diffRuns(current, (previous.characters || [])[0], difficulty);
+    if (!added.length && !removed.length && !gear.length) {
+      body.appendChild(h("p", { className: "changes__none", text: t("noChanges") }));
+      return;
+    }
+    const itemList = (items, mod) =>
+      items.map((u) =>
+        h("span", { className: `changes__item changes__item--${mod}` }, [
+          linkOrText(wowheadItemUrl(u.item, null, u.level), cachedItemLabel(u.item), {
+            className: "changes__link",
+          }),
+          h("span", { className: "changes__pct mono", text: fmtPct(u.percDiff) }),
+        ])
+      );
+    const line = (label, mod, kids) =>
+      h("div", { className: "changes__line" }, [
+        h("span", { className: `changes__tag changes__tag--${mod}`, text: label }),
+        h("div", { className: "changes__items" }, kids),
+      ]);
+    if (added.length) body.appendChild(line(t("changesNew"), "new", itemList(added, "new")));
+    if (removed.length) body.appendChild(line(t("changesGone"), "gone", itemList(removed, "gone")));
+    if (gear.length) {
+      body.appendChild(
+        line(
+          t("changesGear"),
+          "gear",
+          // Same item: its item level moved. Another item: name it.
+          gear.map(({ slot, before, after }) => {
+            const ilvls = `${before.ilvl ?? "?"} → ${after.ilvl ?? "?"}`;
+            const swapped = before.item_id !== after.item_id;
+            return h("span", { className: "changes__item" }, [
+              h("span", { className: "changes__slot", text: `${slotLabel(slot)} ` }),
+              swapped
+                ? h("span", {
+                    text: `${cachedItemLabel(before.item_id, before.name)} → ${cachedItemLabel(after.item_id, after.name)}`,
+                    attrs: { title: ilvls },
+                  })
+                : h("span", {
+                    className: "mono",
+                    text: ilvls,
+                    attrs: { title: cachedItemLabel(after.item_id, after.name) },
+                  }),
+            ]);
+          })
+        )
+      );
+    }
+    refreshWowheadLinks();
+  });
+  return box;
+}
+
+// ---------------------------------------------------------------------
+// Gear: WoW-style paper doll. Shirt and tabard are cosmetic and left out,
+// so the columns are rebalanced to seven slots each. Under every slot: the
+// best upgrade for it in the report tab that's open (rings and trinkets:
+// the best two, in order), the same picks "power to gain" adds up.
+// ---------------------------------------------------------------------
+const PAPERDOLL_LEFT = ["head", "neck", "shoulder", "back", "chest", "wrist", "hands"];
+const PAPERDOLL_RIGHT = ["waist", "legs", "feet", "finger1", "finger2", "trinket1", "trinket2"];
+const PAPERDOLL_WEAPONS = ["main_hand", "off_hand"];
+
+// QE's slot names (results[].slot) -> paper-doll slots, in fill order.
+const QE_SLOT_TO_GEAR = {
+  Head: ["head"],
+  Neck: ["neck"],
+  Shoulder: ["shoulder"],
+  Back: ["back"],
+  Chest: ["chest"],
+  Wrist: ["wrist"],
+  Hands: ["hands"],
+  Waist: ["waist"],
+  Legs: ["legs"],
+  Feet: ["feet"],
+  Finger: ["finger1", "finger2"],
+  Trinket: ["trinket1", "trinket2"],
+  "2H Weapon": ["main_hand"],
+  "1H Weapon": ["main_hand"],
+  WeaponMainHand: ["main_hand"],
+  Offhand: ["off_hand"],
+  Shield: ["off_hand"],
+};
+
+/** slot -> best upgrade for it in the open report tab. Upgrades come sorted best first.
+ * A ring or trinket that's a better copy of one you wear goes under that one. */
+function bestUpgradeBySlot(character, gearBySlot) {
+  const reports = Array.isArray(character.reports) ? character.reports : [];
+  const report = reports.find((r) => r.difficulty === state.reportsTab && !r.error);
+  const bySlot = new Map();
+  if (!report) return bySlot;
+  for (const u of computeUpgrades(report.results)) {
+    const targets = Object.hasOwn(QE_SLOT_TO_GEAR, u.slot) ? QE_SLOT_TO_GEAR[u.slot] : [];
+    const wearing = (slot) => gearBySlot.get(slot)?.item_id === u.item;
+    const ordered = [...targets.filter(wearing), ...targets.filter((slot) => !wearing(slot))];
+    const free = ordered.find((slot) => !bySlot.has(slot));
+    if (free) bySlot.set(free, u);
+  }
+  return bySlot;
+}
+
+function paperdollSlot(slot, bySlot, best) {
   const g = bySlot.get(slot);
-  const dimmed = DIMMED_SLOTS.has(slot);
   const classes = ["pd-slot"];
-  if (dimmed) classes.push("pd-slot--dim");
 
   if (!g) {
     classes.push("pd-slot--empty");
@@ -1158,9 +1382,33 @@ function paperdollSlot(slot, bySlot) {
     text: Number.isFinite(g.ilvl) ? String(g.ilvl) : "?",
   });
 
+  const main = h("div", { className: "pd-slot__main" }, [link, ilvlPill]);
+  const up = best.get(slot);
+  if (up) {
+    main.appendChild(
+      h(
+        "div",
+        {
+          className: "pd-slot__up",
+          attrs: { title: t("bestForSlot", { diff: state.reportsTab }) },
+        },
+        [
+          h("span", { className: "pd-slot__up-name" }, [
+            h("span", { className: "pd-slot__up-arrow", text: "↑ ", attrs: { "aria-hidden": "true" } }),
+            linkOrText(wowheadItemUrl(up.item, null, up.level), cachedItemLabel(up.item), {
+              className: "pd-slot__up-item",
+            }),
+          ]),
+          h("span", { className: "pd-slot__up-ilvl mono", text: Number.isFinite(up.level) ? String(up.level) : "" }),
+          h("span", { className: "pd-slot__up-pct mono", text: fmtPct(up.percDiff) }),
+        ]
+      )
+    );
+  }
+
   return h("div", { className: classes.join(" ") }, [
     h("span", { className: "pd-slot__label", text: slotLabel(slot) }),
-    h("div", { className: "pd-slot__main" }, [link, ilvlPill]),
+    main,
   ]);
 }
 
@@ -1169,56 +1417,61 @@ function renderPaperdoll(character) {
 
   const gear = Array.isArray(character.gear) ? character.gear : [];
   const bySlot = new Map(gear.map((g) => [g.slot, g]));
+  const best = bestUpgradeBySlot(character, bySlot);
 
   const idBlock = h("div", { className: "pd-id" }, [
-    h("div", { className: "pd-id__name", text: character.name || "Unknown character" }),
+    h("div", { className: "pd-id__name", text: character.name || t("unknownCharacter") }),
     h("div", { className: "pd-id__spec", text: specLabel(character) }),
   ]);
   const { avg, count, total } = computeAvgIlvl(gear);
   const ilvlLine = h("div", { className: "pd-id__ilvl" }, [
-    h("span", { text: "Avg ilvl " }),
+    h("span", { text: t("avgIlvlPrefix") }),
     h("b", { className: "mono", text: avg === null ? "?" : String(avg) }),
   ]);
   if (count < total) {
-    ilvlLine.appendChild(h("span", { className: "pd-id__ilvl-note", text: ` (${count}/${total} slots)` }));
+    ilvlLine.appendChild(h("span", { className: "pd-id__ilvl-note", text: t("slotsNote", { count, total }) }));
   }
   idBlock.appendChild(ilvlLine);
   // When the gear source last read the character (Raider.io's crawl time). Older runs lack it.
+  // More than a day old turns it gold: QE then measured upgrades against gear that may have
+  // changed since.
   const profileUrl = raiderioProfileUrl(character);
   document.getElementById("gearSourceLink").setAttribute("href", profileUrl || "https://raider.io");
   if (typeof character.gear_as_of === "string" && character.gear_as_of) {
+    const read = parseDate(character.gear_as_of);
+    const stale = read !== null && Date.now() - read.getTime() > DAY_MS;
     const asOf = h("div", {
-      className: "pd-id__asof",
-      text: `Raider.io read ${relativeTime(character.gear_as_of)}`,
+      className: `pd-id__asof${stale ? " pd-id__asof--stale" : ""}`,
+      text: t("raiderioRead", { when: relativeTime(character.gear_as_of) }),
     });
     asOf.setAttribute("title", absoluteTime(character.gear_as_of));
     idBlock.appendChild(asOf);
+    if (stale) {
+      idBlock.appendChild(
+        h("span", {
+          className: "pill pill--warn pill--sm pd-id__stale",
+          text: t("gearStale"),
+          attrs: { title: t("gearStaleTitle") },
+        })
+      );
+    }
   }
   // Raider.io's update button is meant for people; this pipeline never presses it (their API
   // terms forbid automating unpublished endpoints), so offer it as a manual link.
   if (profileUrl) {
     idBlock.appendChild(
-      linkOrText(profileUrl, "Update on Raider.io ↗", { className: "pill pill--link pill--sm pd-id__update" })
+      linkOrText(profileUrl, t("updateOnRaiderio"), { className: "pill pill--link pill--sm pd-id__update" })
     );
   }
 
-  const leftCol = h(
-    "div",
-    { className: "pd-col pd-col--left" },
-    PAPERDOLL_LEFT.map((slot) => paperdollSlot(slot, bySlot))
-  );
-  const rightCol = h(
-    "div",
-    { className: "pd-col pd-col--right" },
-    PAPERDOLL_RIGHT.map((slot) => paperdollSlot(slot, bySlot))
-  );
-  const weapons = h(
-    "div",
-    { className: "pd-weapons" },
-    PAPERDOLL_WEAPONS.map((slot) => paperdollSlot(slot, bySlot))
-  );
-
-  const doll = h("div", { className: "paperdoll" }, [idBlock, leftCol, rightCol, weapons]);
+  const column = (slots, className) =>
+    h("div", { className }, slots.map((slot) => paperdollSlot(slot, bySlot, best)));
+  const doll = h("div", { className: "paperdoll" }, [
+    idBlock,
+    column(PAPERDOLL_LEFT, "pd-col pd-col--left"),
+    column(PAPERDOLL_RIGHT, "pd-col pd-col--right"),
+    column(PAPERDOLL_WEAPONS, "pd-weapons"),
+  ]);
   els.gearContainer.appendChild(doll);
 }
 
@@ -1227,6 +1480,7 @@ function renderPaperdoll(character) {
 // run summary and all following the displayed run together.
 // ---------------------------------------------------------------------
 function renderRunData(fullData) {
+  state.runData = fullData;
   clear(els.reportsContainer);
   clear(els.crestContainer);
   clear(els.gearContainer);
@@ -1235,7 +1489,7 @@ function renderRunData(fullData) {
 
   const characters = Array.isArray(fullData.characters) ? fullData.characters : [];
   if (characters.length === 0) {
-    els.reportsContainer.appendChild(errorCapsule("This run has no character data."));
+    els.reportsContainer.appendChild(errorCapsule(t("runNoCharacterData")));
     return;
   }
 
@@ -1264,6 +1518,7 @@ function clearGlobalError() {
 }
 
 function clearAllRunViews() {
+  state.runData = null;
   clear(els.tilesContainer);
   clear(els.reportsContainer);
   clear(els.crestContainer);
@@ -1283,7 +1538,7 @@ async function loadLatest() {
     renderRunData(data);
   } catch (err) {
     clearAllRunViews();
-    els.reportsContainer.appendChild(errorCapsule(`Could not load the latest run: ${err.message}`));
+    els.reportsContainer.appendChild(errorCapsule(t("couldNotLoadLatest", { msg: err.message })));
   }
 }
 
@@ -1291,7 +1546,7 @@ async function selectRun(id) {
   const url = runDataUrl(id);
   if (!url) {
     clearAllRunViews();
-    els.reportsContainer.appendChild(errorCapsule(`"${id}" is not a valid run id.`));
+    els.reportsContainer.appendChild(errorCapsule(t("invalidRunId", { id })));
     return;
   }
   const isLatest =
@@ -1305,7 +1560,7 @@ async function selectRun(id) {
     renderRunData(data);
   } catch (err) {
     clearAllRunViews();
-    els.reportsContainer.appendChild(errorCapsule(`Could not load run ${id}: ${err.message}`));
+    els.reportsContainer.appendChild(errorCapsule(t("couldNotLoadRun", { id, msg: err.message })));
   }
 }
 
@@ -1336,31 +1591,67 @@ function navigateToLatest() {
 }
 
 // ---------------------------------------------------------------------
-// Init.
+// Language switch (EN | NL). Switching redraws everything from what's
+// already loaded; nothing is fetched again.
 // ---------------------------------------------------------------------
-async function init() {
-  collectEls();
-  setupWowheadTooltips();
-  observeWowheadNames();
-
+function applyLanguage() {
+  applyStaticText();
   // The <h1> is the single source of truth for the page title; the static
   // <title> in the HTML is only the no-JS fallback.
   const titleH1 = document.getElementById("pageTitle");
   if (titleH1 && titleH1.textContent) document.title = titleH1.textContent;
+  document.querySelectorAll("#langSwitch [data-lang]").forEach((btn) => {
+    const on = btn.getAttribute("data-lang") === lang();
+    btn.classList.toggle("is-active", on);
+    btn.setAttribute("aria-pressed", String(on));
+  });
+}
+
+function setupLanguageSwitch() {
+  document.querySelectorAll("#langSwitch [data-lang]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-lang");
+      if (next === lang()) return;
+      setLang(next);
+      applyLanguage();
+      rerender();
+    });
+  });
+}
+
+function rerender() {
+  if (!state.index) return;
+  renderHeader(state.index);
+  renderHistory(state.index);
+  const runs = state.index.runs || [];
+  const isLatest = !state.activeRunId || (runs[0] && runs[0].id === state.activeRunId);
+  renderViewingBanner(state.activeRunId, isLatest);
+  if (state.runData) renderRunData(state.runData);
+}
+
+// ---------------------------------------------------------------------
+// Init.
+// ---------------------------------------------------------------------
+async function init() {
+  collectEls();
+  applyLanguage();
+  setupLanguageSwitch();
+  setupWowheadTooltips();
+  observeWowheadNames();
 
   let indexData;
   try {
     indexData = await fetchJson("data/index.json");
   } catch (err) {
-    showGlobalError(`Could not load the run index: ${err.message}`);
-    els.headerStatus.appendChild(h("span", { className: "pill pill--fail", text: "Unavailable" }));
-    els.historyContainer.appendChild(h("p", { className: "muted-note", text: "Run history is unavailable." }));
-    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: "Reports are unavailable." }));
+    showGlobalError(t("couldNotLoadIndex", { msg: err.message }));
+    els.headerStatus.appendChild(h("span", { className: "pill pill--fail", text: t("unavailable") }));
+    els.historyContainer.appendChild(h("p", { className: "muted-note", text: t("historyUnavailable") }));
+    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: t("reportsUnavailable") }));
     return;
   }
 
   if (!indexData || !Array.isArray(indexData.runs)) {
-    showGlobalError("The run index isn't in the expected format.");
+    showGlobalError(t("indexFormat"));
     return;
   }
 

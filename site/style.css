@@ -67,7 +67,11 @@ a:hover { text-decoration-color: var(--jade); }
    so a flex column child stretches to the full row width by default --
    without this the ribbon would span the whole page instead of hugging
    its own content, the way it does on the overlay's page. */
-.brand-rib { margin-bottom: 26px; align-self: flex-start; }
+.brand-rib { align-self: flex-start; }
+/* Brand ribbon left, EN | NL switch right, on one line above the title. */
+.dash-topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 26px; }
+.lang-switch { display: flex; gap: 4px; }
+.lang-switch .pill { padding: 6px 14px 6px 11px; }
 
 /* ---- angled "rcard" panel ---------------------------------------------
    Same idiom as the overlay: flat two-layer border, corner cut bottom
@@ -223,9 +227,11 @@ a:hover { text-decoration-color: var(--jade); }
 }
 .tile__label { font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-400); }
 .tile__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* Up to two lines, then an ellipsis; Wowhead's hover tooltip carries the full name. */
 .tile__link {
-  font-size: 15px; font-weight: 600; color: var(--paper);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 15px; font-weight: 600; color: var(--paper); line-height: 1.3;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere;
 }
 .tile__big { font-size: 28px; font-weight: 600; color: var(--paper); line-height: 1.05; }
 .tile__big--jade { color: var(--jade); cursor: help; }
@@ -360,6 +366,18 @@ a.report-link:hover { color: var(--jade); }
 .history-row__gh { font-size: 11px; color: var(--ink-400); margin-left: auto; white-space: nowrap; }
 .history-row__gh:hover { color: var(--jade); }
 .history-showmore { margin-top: 12px; }
+/* A group's "+N runs with the same results" toggle, and the runs it unfolds. */
+.history-fold {
+  order: 10; flex-basis: 100%; text-align: left; padding: 0 0 0 16px;
+  border: 0; background: none; cursor: pointer;
+  font-family: var(--f-display); font-size: 11px; color: var(--ink-400); white-space: nowrap;
+}
+.history-fold::before { content: '\25B8'; display: inline-block; margin-right: 5px; color: var(--jade); transition: transform var(--t-fast) var(--ease); }
+.history-fold.is-open::before { transform: rotate(90deg); }
+.history-fold:hover { color: var(--paper-dim); }
+.history-row--nested { padding-left: 22px; }
+.history-row--nested .history-row__dot { width: 6px; height: 6px; flex-basis: 6px; background: var(--ink-600); }
+.history-legend { white-space: nowrap; }
 
 /* ---- gear paper doll -------------------------------------------------------- */
 .paperdoll {
@@ -383,6 +401,8 @@ a.report-link:hover { color: var(--jade); }
 .pd-id__ilvl { margin-top: 8px; font-size: 13px; color: var(--ink-300); }
 .pd-id__ilvl-note { color: var(--ink-500); }
 .pd-id__asof { margin-top: 2px; font-size: 12px; color: var(--ink-400); }
+.pd-id__asof--stale { color: var(--gold); }
+.pd-id__stale { margin-top: 6px; cursor: help; }
 .pd-id__update { margin-top: 8px; }
 .pd-weapons { grid-area: weapons; display: flex; flex-direction: column; }
 
@@ -392,7 +412,6 @@ a.report-link:hover { color: var(--jade); }
   padding: 11px 2px; min-width: 0;
 }
 .pd-col .pd-slot:first-child, .pd-weapons .pd-slot:first-child { border-top: 1px solid var(--ink-700); }
-.pd-slot--dim { opacity: .58; }
 .pd-slot--empty { color: var(--ink-500); }
 .pd-slot__label {
   flex: 0 0 78px; font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-400);
@@ -402,6 +421,39 @@ a.report-link:hover { color: var(--jade); }
   font-size: 13.5px; font-weight: 600; color: var(--paper);
   white-space: normal; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0;
 }
+/* The best upgrade for the slot, under the equipped item: a quieter second line. */
+.pd-slot__up {
+  flex: 1 0 100%; display: flex; align-items: baseline; gap: 6px; min-width: 0;
+  font-size: 12px; color: var(--ink-300); cursor: default;
+}
+.pd-slot__up-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-slot__up-arrow { color: var(--jade); font-weight: 700; }
+.pd-slot__up-item { color: var(--paper-dim); }
+.pd-slot__up-ilvl { color: var(--ink-400); font-size: 11.5px; }
+.pd-slot__up-pct { margin-left: auto; color: var(--jade); font-size: 12px; white-space: nowrap; }
+
+/* ---- "since the previous run" ---------------------------------------------- */
+.changes {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px; background: var(--ink-850); border: 1px solid var(--ink-700);
+}
+.changes__title { font-size: 10px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-400); }
+.changes__none { font-size: 13px; color: var(--ink-300); }
+.changes__body { display: flex; flex-direction: column; gap: 8px; }
+.changes__line { display: flex; align-items: baseline; gap: 10px; }
+.changes__tag {
+  flex: 0 0 auto; min-width: 58px; font-size: 10px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.changes__tag--new { color: var(--jade); }
+.changes__tag--gone { color: var(--rose); }
+.changes__tag--gear { color: var(--gold); }
+.changes__items { display: flex; flex-wrap: wrap; gap: 4px 16px; min-width: 0; font-size: 13px; }
+.changes__item { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; color: var(--paper-dim); }
+.changes__item--gone .changes__link { text-decoration: line-through; text-decoration-color: var(--ink-500); }
+.changes__pct { font-size: 12px; color: var(--ink-300); }
+.changes__item--new .changes__pct { color: var(--jade); }
+.changes__slot { color: var(--ink-400); }
 
 /* ---- footer / "how this works" --------------------------------------------- */
 .dash-footer { display: flex; flex-direction: column; gap: 16px; align-items: center; padding-top: 8px; }
@@ -459,6 +511,9 @@ a.report-link:hover { color: var(--jade); }
   .pd-slot { flex-direction: column; align-items: flex-start; gap: 6px; }
   .pd-slot__label { flex: 0 0 auto; }
   .pd-slot__main { width: 100%; }
+  /* Half a column is too narrow to cut the upgrade's name short: let it wrap. */
+  .pd-slot__up { flex-wrap: wrap; row-gap: 2px; }
+  .pd-slot__up-name { flex-basis: 100%; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
 }
 
 /* ---- responsive: down to 360px -------------------------------------------- */

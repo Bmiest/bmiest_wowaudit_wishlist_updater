@@ -99,8 +99,12 @@ with their top upgrades and the boss or dungeon each one drops from, and the gea
 equipped. "Power to gain" adds up the biggest upgrade in every slot (the best two rings and
 trinkets; a two-hander or a one-hander plus off-hand), per difficulty and per source filter. QE
 rates each item against your current gear, so the total is an estimate, and it's a % of your
-healing: QE has no HPS numbers. The history lives on the `dashboard-data` branch, which keeps
-the newest 200 runs. The pipeline only records data there; `deploy-site.yml` is the one
+healing: QE has no HPS numbers. Under each gear slot it shows the best upgrade for that slot in
+the open report, and above the report what changed since the previous run (new and gone
+upgrades, gear swaps). Runs in a row that found the same are folded into one history row, by a
+digest of their results in `index.json`. The page is in English or Dutch: `?lang=en|nl`, the
+EN | NL switch in the header (remembered), else the browser language. The history lives on the
+`dashboard-data` branch, which keeps the newest 200 runs. The pipeline only records data there; `deploy-site.yml` is the one
 workflow that deploys the site.
 It runs after every pipeline run, whenever `site/` changes on `main` (no pipeline run, no
 WoWAudit upload), and on demand, and it always builds the latest `main` with the latest data.

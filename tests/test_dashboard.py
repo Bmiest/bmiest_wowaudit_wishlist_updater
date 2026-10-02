@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from wishlist_updater.dashboard import main, publish, run_header
+from wishlist_updater.dashboard import main, publish, results_digest, run_header
 
 SAMPLE = json.loads(
     (Path(__file__).parent / "fixtures" / "dashboard" / "run_sample.json").read_text()
@@ -53,3 +53,38 @@ def test_main_without_summary_still_rebuilds(tmp_path, capsys):
     assert main([str(tmp_path / "missing.json"), str(tmp_path)]) == 0
     assert json.loads((tmp_path / "index.json").read_text())["runs"][0]["id"] == "1"
     assert "1 run(s)" in capsys.readouterr().out
+
+
+def test_digest_ignores_report_ids_and_timestamps():
+    a = _summary("1", "2026-09-20T06:00:00+00:00")
+    b = _summary("2", "2026-09-21T06:00:00+00:00")
+    for r in b["characters"][0]["reports"]:
+        r["report_id"] = "other"
+        r["report_url"] = "https://questionablyepic.com/live/upgradereport/other"
+    assert results_digest(a) == results_digest(b)
+    assert run_header(a)["digest"] == results_digest(a)
+
+
+def test_digest_changes_with_upgrades_and_gear():
+    base = _summary("1", "2026-09-20T06:00:00+00:00")
+    found = copy.deepcopy(base)
+    report = found["characters"][0]["reports"][0]
+    report["results"] = list(report.get("results") or []) + [
+        {"item": 1, "level": 300, "dropType": "drop", "percDiff": 0.5}
+    ]
+    geared = copy.deepcopy(base)
+    geared["characters"][0]["gear"] = list(geared["characters"][0].get("gear") or []) + [
+        {"slot": "head", "item_id": 2, "ilvl": 300}
+    ]
+    digests = {results_digest(base), results_digest(found), results_digest(geared)}
+    assert len(digests) == 3
+
+
+def test_digest_ignores_non_upgrades():
+    base = _summary("1", "2026-09-20T06:00:00+00:00")
+    noise = copy.deepcopy(base)
+    report = noise["characters"][0]["reports"][0]
+    report["results"] = list(report.get("results") or []) + [
+        {"item": 1, "level": 300, "dropType": "drop", "percDiff": 0}
+    ]
+    assert results_digest(base) == results_digest(noise)
