@@ -14,6 +14,7 @@ from wishlist_updater.qe import (
     generate_upgrade_report,
     mplus_label_levels,
     parse_simc_identity,
+    redact_simc,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -192,3 +193,19 @@ async def test_generate_upgrade_report_live_failure_saves_artifacts(tmp_path):
     with pytest.raises(QEError, match="applying Upgrade Finder settings.*No raid difficulty"):
         await _run_live(QESettings(raid_difficulty="Impossible"), tmp_path)
     assert sorted(path.suffix for path in tmp_path.iterdir()) == [".html", ".log", ".png"]
+
+
+def test_redact_simc_scrubs_every_long_line():
+    simc = (
+        '# Shiftheal - Holy - 2026-10-03\npriest="Shiftheal"\nlevel=80\n'
+        "# bag: head=,id=12345,bonus_id=1/2\n"
+    )
+    html = (
+        '<div># Shiftheal - Holy - 2026-10-03</div><p>priest="Shiftheal"</p>'
+        "<pre># bag: head=,id=12345,bonus_id=1/2</pre><span>level=80</span>"
+    )
+    out = redact_simc(html, simc)
+    assert "Shiftheal - Holy" not in out
+    assert "id=12345" not in out
+    assert 'priest="Shiftheal"' not in out
+    assert "level=80" in out  # too short to be worth hiding, and not personal
