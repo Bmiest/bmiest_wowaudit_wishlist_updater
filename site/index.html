@@ -4,103 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://wow.zamimg.com; style-src 'self' https://fonts.googleapis.com https://wow.zamimg.com 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' https://wow.zamimg.com data:; connect-src 'self' https://nether.wowhead.com; base-uri 'none'; form-action 'none';">
-<title>Gear upgrade reports for WoW</title>
-<meta name="description" content="Daily QE Live upgrade reports, crest planner and equipped gear for Shiftheal.">
+<title>Gear upgrades · bmiest</title>
+<meta name="description" content="Tonight's raid bosses and what they can drop for Shiftheal, the week's best M+ dungeons and where to spend crests, from the daily QE Live upgrade reports.">
+<meta name="theme-color" content="#0a0b0d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<div class="page">
-
-  <header class="dash-header">
-    <div class="dash-topline">
-      <div class="rib rib--sm brand-rib" style="--acc:var(--jade)">
-        <div class="rib__bar"><div class="rib__in">
-          <span class="rib__acc"><svg viewBox="0 0 18 18" aria-hidden="true">
-            <circle cx="9" cy="9" r="3" fill="currentColor"></circle>
-            <path d="M4.2 4.2a6.8 6.8 0 0 0 0 9.6M13.8 4.2a6.8 6.8 0 0 1 0 9.6"
-                  fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-          </svg></span>
-          <span class="rib__val">bmiest</span>
-        </div></div>
-      </div>
-      <!-- EN | NL. app.js wires the buttons; i18n.js picks the starting language. -->
-      <div id="langSwitch" class="lang-switch" role="group" aria-label="Language" data-i18n-aria="langLabel">
-        <button type="button" class="pill pill--filter" data-lang="en" lang="en">EN</button>
-        <button type="button" class="pill pill--filter" data-lang="nl" lang="nl">NL</button>
-      </div>
-    </div>
-
-    <!-- This h1's textContent is the single source of truth for the page
-         title: app.js copies it into document.title at init, and the
-         static <title> above holds the same text as the no-JS fallback. -->
-    <h1 id="pageTitle" data-i18n="pageTitle">Gear upgrade reports for WoW</h1>
-    <p class="lead" data-i18n="lead">Daily QE Live upgrade reports for Shiftheal: what to wish for in raid and M+, and where to spend crests.</p>
-
-    <div id="headerCapsules" class="capsule-row"></div>
-    <div class="status-line">
-      <div id="headerStatus" class="status-row"></div>
-      <div id="headerMascot" class="mascot-slot" hidden></div>
-      <span id="headerUpdated" class="updated"></span>
-    </div>
-  </header>
-
-  <div id="globalError" class="global-error" hidden></div>
-
-  <div id="viewingBanner" class="viewing-banner" hidden></div>
-
-  <section class="view tiles-view" aria-label="Key stats" data-i18n-aria="keyStats">
-    <div id="tilesContainer" class="tiles-grid"></div>
-  </section>
-
-  <div class="command-grid">
-
-    <section id="reportsSection" class="view grid-reports" aria-labelledby="reportsHeading">
-      <h2 id="reportsHeading" class="view__title">Latest reports</h2>
-      <p class="section-caption" data-i18n="reportsCaption">The % is QE's estimate of how much more you'd heal if this item replaced the one you wear now. Your equipped gear counts at max upgrade, and no sockets are added.</p>
-      <div id="reportsContainer" class="reports-container"></div>
-    </section>
-
-    <section id="crestSection" class="view grid-crests" aria-labelledby="crestHeading">
-      <h2 id="crestHeading" class="view__title" data-i18n="crestHeading">Where to spend crests</h2>
-      <p class="section-caption" data-i18n="crestCaption">QE's estimate of each item at max upgrade compared with how it's equipped now. Crest costs aren't shown.</p>
-      <div id="crestContainer" class="crest-container"></div>
-    </section>
-
-    <section id="historySection" class="view grid-history" aria-labelledby="historyHeading">
-      <h2 id="historyHeading" class="view__title" data-i18n="historyHeading">Run history</h2>
-      <p class="section-caption"><span data-i18n="historyCaption">Every automated run. Click one to see its reports. Runs in a row that found the same are folded together.</span> <span class="history-legend" data-i18n="historyLegend">✓ marks the report that was uploaded.</span></p>
-      <div id="historyContainer" class="history-container"></div>
-      <div id="historyShowMoreWrap" class="history-showmore"></div>
-    </section>
-
-  </div>
-
-  <section class="view" aria-labelledby="gearHeading">
-    <h2 id="gearHeading" class="view__title" data-i18n="gearHeading">Gear</h2>
-    <!-- Raider.io's API terms require a link back to raider.io. app.js points it at the character's profile. -->
-    <p class="section-caption"><span data-i18n="gearCaption">Equipped gear as of this run, from </span><a id="gearSourceLink" href="https://raider.io" target="_blank" rel="noopener noreferrer">Raider.io</a>. <span data-i18n="gearCaptionUpgrade">Under each slot: the best upgrade in the report you have open.</span></p>
-    <div id="gearContainer" class="paperdoll-container"></div>
-  </section>
-
-  <footer class="dash-footer">
-    <details class="how-it-works">
-      <summary data-i18n="howItWorks">How this works</summary>
-      <ol class="how-it-works__list">
-        <li data-i18n="how1">Gear comes from Raider.io, plus the catalyst and crafted stats it can't see, which are stored in the repo. Manual runs can use a pasted /simc export instead.</li>
-        <li data-i18n="how2">QE Live's Upgrade Finder runs in a headless browser, first for Heroic and then for Mythic. No sockets are added, and your equipped gear counts at max upgrade.</li>
-        <li data-i18n="how3">The boss or dungeon each upgrade drops from comes from QE Live's item database.</li>
-        <li data-i18n="how4">This page is republished after every run.</li>
-      </ol>
-    </details>
-    <p class="footer-attribution"><span data-i18n="gearData">Gear data: </span><a href="https://raider.io" target="_blank" rel="noopener noreferrer">Raider.io</a></p>
-    <a class="footer-link" href="https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater" target="_blank" rel="noopener noreferrer" data-i18n="sourceOnGithub">Source on GitHub</a>
-  </footer>
-
-</div>
-
+<!-- app.js renders the whole page into #app from data/*.json (see the header of app.js). -->
+<div id="app"><p class="boot">Loading the latest run…</p></div>
+<noscript><p class="boot">This dashboard needs JavaScript. The reports themselves are on QE Live.</p></noscript>
 <script src="i18n.js"></script>
+<script src="bossart.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
