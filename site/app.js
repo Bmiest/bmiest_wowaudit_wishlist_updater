@@ -890,11 +890,12 @@ function raidNightWhen(night) {
   const cfg = currentRaidNight();
   if (!night) return h("div", { className: "rn__when" }, [h("h2", { className: "rn__date", text: t("raidBosses"), attrs: { id: "rnH" } })]);
   const fmt = (o) => night.start.toLocaleString(locale(), { timeZone: cfg.tz, ...o });
-  const dayWord = night.live || night.dayOffset <= 0 ? t("tonight") : night.dayOffset === 1 ? t("tomorrow") : capitalize(fmt({ weekday: "long" }));
+  const dayWord = night.live || night.dayOffset <= 0 ? t("tonight") : capitalize(fmt({ weekday: "long" }));
   const range = `${fmt({ hour: "2-digit", minute: "2-digit" })}–${night.end.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", timeZone: cfg.tz })}`;
   return h("div", { className: "rn__when" }, [
-    h("p", { className: "rn__label", text: night.live ? t("raidNow") : t("nextRaid") }),
     h("h2", { className: "rn__date", attrs: { id: "rnH" } }, [
+      // The heading says when; screen readers also hear what it is.
+      h("span", { className: "visually-hidden", text: `${night.live ? t("raidNow") : t("nextRaid")}: ` }),
       h("span", { text: `${dayWord} ` }),
       h("span", { className: "rn__time", text: fmt({ hour: "2-digit", minute: "2-digit" }) }),
     ]),
@@ -1166,7 +1167,7 @@ function gearTable() {
       h("td", {}, [g ? h("span", { className: "gt__it" }, [itemIcon(g.item_id, g.icon), itemLink(g.item_id, g.ilvl, { bonus: g.bonus_ids, name: g.name })]) : h("span", { className: "muted", text: "–" })]),
       h("td", { className: "num mono", text: g && Number.isFinite(g.ilvl) ? String(g.ilvl) : "?" }),
       h("td", {}, [up
-        ? h("span", { className: "gt__it" }, [itemIcon(up.item, up.icon), h("span", { className: "gt__upw" }, [itemLink(up.item, up.level, { name: up.name }), h("span", { className: "gt__src", text: ` · ${sourceName(up, raids)}` })])])
+        ? h("span", { className: "gt__it" }, [itemIcon(up.item, up.icon), h("span", { className: "gt__upw" }, [itemLink(up.item, up.level, { name: up.name }), h("span", { className: "gt__src", text: sourceName(up, raids) })])])
         : h("span", { className: "muted", text: t("noneShort") })]),
       h("td", { className: "num mono", text: up && Number.isFinite(up.level) ? String(up.level) : "" }),
       h("td", { className: "num" }, [up ? h("span", { className: "pct mono", text: fmtPct(up.percDiff) }) : null]),
@@ -1354,15 +1355,12 @@ function changesBlock(diff) {
   const box = h("div", { className: "changes" });
   const runId = S.data && S.data.run ? S.data.run.id : null;
   const prev = runId ? previousRunWith(runId, diff) : null;
-  const title = h("span", { className: "changes__title" });
-  box.appendChild(title);
   if (!prev) {
-    title.textContent = t("since");
     box.appendChild(h("p", { className: "muted", text: t("noPrevious") }));
     return box;
   }
-  title.textContent = t("sinceWhen", { when: relativeTime(prev.started_at) });
-  title.setAttribute("title", absoluteTime(prev.started_at));
+  const when = relativeTime(prev.started_at);
+  box.setAttribute("title", absoluteTime(prev.started_at));
   const body = h("div", { className: "changes__body", attrs: { "aria-live": "polite" } }, [h("span", { className: "muted", text: "…" })]);
   box.appendChild(body);
   const data = S.data;
@@ -1374,11 +1372,12 @@ function changesBlock(diff) {
     }
     const { added, removed, gear } = diffRuns((data.characters || [])[0], (p.characters || [])[0], diff);
     if (!added.length && !removed.length && !gear.length) {
-      body.appendChild(h("p", { className: "changes__none" }, [icon("check"), h("span", { text: t("noChanges") })]));
+      body.appendChild(h("p", { className: "changes__none" }, [icon("check"), h("span", { text: t("noChanges", { when }) })]));
       return;
     }
     const line = (label, mod, kids) => h("div", { className: "changes__line" }, [h("span", { className: `tag tag--${mod}`, text: label }), h("div", { className: "changes__items" }, kids)]);
     const items = (list) => list.map((u) => h("span", { className: "changes__item" }, [itemLink(u.item, u.level, { name: u.name }), h("span", { className: "pct mono", text: fmtPct(u.percDiff) })]));
+    body.appendChild(h("p", { className: "changes__lead", text: t("changedSince", { when }) }));
     if (added.length) body.appendChild(line(t("changesNew"), "ok", items(added)));
     if (removed.length) body.appendChild(line(t("changesGone"), "muted", items(removed)));
     if (gear.length) {
