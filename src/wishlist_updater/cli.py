@@ -494,7 +494,10 @@ async def run(args: argparse.Namespace) -> int:
     if args.summary_json:
         from wishlist_updater.summary import build_summary, write_summary
 
-        write_summary(build_summary(outcomes, started_at=started_at), args.summary_json)
+        write_summary(
+            build_summary(outcomes, started_at=started_at, raid_night=config.raid_night),
+            args.summary_json,
+        )
     for o in outcomes:
         status = (
             o.error

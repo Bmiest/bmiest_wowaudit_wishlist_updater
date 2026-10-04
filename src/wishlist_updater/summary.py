@@ -5,7 +5,9 @@ is reports[].uploaded, which the run history shows as a check mark.
 
 Everything in here ends up on a public website, so it only carries data that's public
 anyway: equipped gear (Armory / Raider.io), QE report links and their results (QE's public
-API), which boss or dungeon each item drops from (QE's public item database) and run status.
+API), which boss or dungeon each item drops from, item names and icons, and each raid's kill
+order (QE's public item and instance databases), the raid nights from wishlist.toml and run
+status.
 Never the WoWAudit session, wishlist contents or raw /simc exports (those can include bags and
 currencies).
 """
@@ -22,14 +24,17 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from wishlist_updater.drop_sources import fetch_item_info
+from wishlist_updater.drop_sources import ItemInfo, fetch_item_info
 
 if TYPE_CHECKING:
     from wishlist_updater.cli import Outcome
+    from wishlist_updater.config import RaidNight
 
 log = logging.getLogger("wishlist_updater")
 
-SCHEMA_VERSION = 1
+# 2: results carry name/icon (upgrades), gear and crest upgrades an icon, and the summary has
+# "raids" (bosses in kill order) and "raid_night". Readers treat all of these as optional.
+SCHEMA_VERSION = 2
 QE_GET_REPORT_URL = "https://questionablyepic.com/api/getUpgradeReport.php"
 
 _ITEM_LINE_RE = re.compile(r"^(?P<slot>[a-z_0-9]+)=,(?P<fields>.*)$")
@@ -87,18 +92,39 @@ def slim_results(report: dict) -> list[dict]:
     return [{k: r.get(k) for k in keep} for r in report.get("results") or []]
 
 
-def add_item_info(characters: list[dict], client: httpx.Client) -> None:
-    """Give every report result a dropSource (its boss or dungeon name) and a slot (for the
-    dashboard's power-to-gain total); either is None if QE's item database doesn't say."""
+def add_item_info(characters: list[dict], client: httpx.Client) -> list[dict]:
+    """Tag every report result with a dropSource (its boss or dungeon name) and a slot (for the
+    dashboard's power-to-gain total); either is None if QE's item database doesn't say.
+
+    The upgrades (percDiff > 0, the only results the dashboard shows) also get the item's
+    English name and icon, and so do the equipped gear and the crest upgrades (a name the
+    /simc export already gave wins). Returns the raids the results drop in, with their bosses
+    in kill order, for the dashboard's boss tiles ([] when QE's databases are unreachable)."""
     results = [r for c in characters for rep in c["reports"] for r in rep["results"]]
+    if not results:
+        return []
+    gear = [g for c in characters for g in c.get("gear") or []]
+    crests = [u for c in characters for u in c.get("crest_upgrades") or []]
+    result_ids = {r["item"] for r in results}
     try:
-        sources, slots = fetch_item_info({r["item"] for r in results}, client)
+        info = fetch_item_info(
+            result_ids | {g["item_id"] for g in gear} | {u["item_id"] for u in crests},
+            client,
+            raid_item_ids=result_ids,
+        )
     except (httpx.HTTPError, ValueError) as exc:
-        log.warning("Boss names and slots unavailable (QE item database): %s", exc)
-        sources, slots = {}, {}
+        log.warning("Boss names, slots and item names unavailable (QE item database): %s", exc)
+        info = ItemInfo()
     for r in results:
-        r["dropSource"] = sources.get(r["item"])
-        r["slot"] = slots.get(r["item"])
+        r["dropSource"] = info.sources.get(r["item"])
+        r["slot"] = info.slots.get(r["item"])
+        if isinstance(r.get("percDiff"), (int, float)) and r["percDiff"] > 0:
+            r["name"] = info.names.get(r["item"])
+            r["icon"] = info.icons.get(r["item"])
+    for entry in gear + crests:
+        entry["name"] = entry.get("name") or info.names.get(entry["item_id"])
+        entry["icon"] = info.icons.get(entry["item_id"])
+    return info.raids
 
 
 def crest_upgrades(current: dict, capped: dict, gear: list[dict]) -> list[dict]:
@@ -161,6 +187,7 @@ def build_summary(
     *,
     started_at: datetime,
     fetch_results: bool = True,
+    raid_night: RaidNight | None = None,
 ) -> dict:
     run_id = os.environ.get("GITHUB_RUN_ID")
     repo = os.environ.get("GITHUB_REPOSITORY")
@@ -228,7 +255,7 @@ def build_summary(
                     "results": slim_results(report(client, report_id)),
                 }
             )
-        add_item_info(list(characters.values()), client)
+        raids = add_item_info(list(characters.values()), client)
     return {
         "schema": SCHEMA_VERSION,
         "run": {
@@ -243,6 +270,10 @@ def build_summary(
             "ok": not any(o.error or o.upload_error for o in outcomes),
         },
         "characters": list(characters.values()),
+        # Game data for the boss tiles: each raid the results drop in, bosses in kill order.
+        "raids": raids,
+        # When the guild raids (wishlist.toml [raid_night]), for the countdown; None if unset.
+        "raid_night": raid_night.as_dict() if raid_night else None,
     }
 
 
