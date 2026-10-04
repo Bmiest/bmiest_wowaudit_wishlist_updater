@@ -10,9 +10,11 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 DEFAULT_CONFIG_PATH = Path("wishlist.toml")
 SIMC_SOURCES = ("raiderio", "blizzard")
@@ -27,8 +29,11 @@ _TOP_LEVEL_KEYS = frozenset(
         "reupload_after_days",
         "upload_difficulties",
         "upload_days",
+        "raid_night",
     }
 )
+_RAID_NIGHT_KEYS = frozenset({"days", "start", "end", "timezone"})
+_HHMM_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 _CHARACTER_KEYS = frozenset({"name", "realm", "region", "item_overrides"})
 
 
@@ -86,6 +91,24 @@ class Secrets:
 
 
 @dataclass(frozen=True)
+class RaidNight:
+    """Raid nights in local time: weekday names, "HH:MM" start and end, an IANA time zone."""
+
+    days: tuple[str, ...]
+    start: str
+    end: str
+    timezone: str
+
+    def as_dict(self) -> dict:
+        return {
+            "days": list(self.days),
+            "start": self.start,
+            "end": self.end,
+            "timezone": self.timezone,
+        }
+
+
+@dataclass(frozen=True)
 class Config:
     characters: tuple[Character, ...]
     qe: dict[str, object]
@@ -103,6 +126,9 @@ class Config:
     # Weekdays (0 = Monday, UTC) on which reports are uploaded, e.g. raid days. When set,
     # this replaces the "changed or older than reupload_after_days" rule.
     upload_weekdays: tuple[int, ...] | None = None
+    # The guild's raid nights, for the dashboard's "Tonight 20:00" countdown (public, it ends
+    # up in the run summary). None = the dashboard shows the bosses without a date.
+    raid_night: RaidNight | None = None
 
     @classmethod
     def load(cls, path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -168,6 +194,7 @@ class Config:
             reupload_after_days=float(raw.get("reupload_after_days", 7)),
             upload_difficulties=uploads,
             upload_weekdays=_parse_upload_days(raw.get("upload_days"), path),
+            raid_night=_parse_raid_night(raw.get("raid_night"), path),
         )
 
 
@@ -256,3 +283,36 @@ def _parse_upload_days(value: object, path: Path) -> tuple[int, ...] | None:
             raise ConfigError(f"{path}: upload_days has {v!r}, which isn't a weekday name")
         days.append(WEEKDAYS.index(name))
     return tuple(sorted(set(days)))
+
+
+def _parse_raid_night(value: object, path: Path) -> RaidNight | None:
+    from wishlist_updater.upload_state import WEEKDAYS
+
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ConfigError(f"{path}: raid_night must be a table ([raid_night])")
+    _reject_unknown(value, _RAID_NIGHT_KEYS, "[raid_night] key", path)
+    days = value.get("days")
+    if isinstance(days, str):
+        days = [days]
+    if not isinstance(days, list) or not days or not all(isinstance(d, str) for d in days):
+        raise ConfigError(f"{path}: raid_night.days must be a non-empty list of weekday names")
+    names = []
+    for d in days:
+        if d.strip().casefold() not in WEEKDAYS:
+            raise ConfigError(f"{path}: raid_night.days has {d!r}, which isn't a weekday name")
+        names.append(d.strip().capitalize())
+    order = sorted(set(names), key=lambda n: WEEKDAYS.index(n.casefold()))
+    times = {}
+    for key in ("start", "end"):
+        t = value.get(key)
+        if not isinstance(t, str) or not _HHMM_RE.match(t):
+            raise ConfigError(f'{path}: raid_night.{key} must be a "HH:MM" time')
+        times[key] = t
+    tz = value.get("timezone", "Europe/Brussels")
+    try:
+        ZoneInfo(str(tz))
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ConfigError(f"{path}: raid_night.timezone {tz!r} isn't a known time zone") from exc
+    return RaidNight(days=tuple(order), start=times["start"], end=times["end"], timezone=str(tz))

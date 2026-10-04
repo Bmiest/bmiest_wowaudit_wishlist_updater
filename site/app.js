@@ -1,41 +1,19 @@
-// Gear upgrade reports -- public run dashboard ("command center" layout).
+// Gear upgrades: the public run dashboard, design language v2 ("raid-night plan").
 //
-// Vanilla JS, no build step. Everything is rendered with
-// document.createElement()/textContent -- never innerHTML -- because the
-// data this page reads (data/*.json) is produced by an automation pipeline
-// that relays error strings from the external services it talks to.
-// Those strings are untrusted and must always end up as literal text, never
-// as markup.
+// What matters this week comes first: the next raid night and what each of its bosses can drop
+// for you (boss tiles in kill order, the best upgrade framed in gold), then the week's best M+
+// dungeons and where to spend crests. The run status, the changes since the previous run and the
+// run history sit in the right rail; the full report (filters, sortable table) and the gear are
+// one fold away.
 //
-// The layout (tiles, reports/crests/history grid, gear paper doll) is built
-// around a single primary character -- everything in the design brief is
-// phrased in the singular ("the top deduped result", "the equipped slots"),
-// and the real data only ever has one. Reports/crests still tolerate a
-// second character defensively (no crash), but the tiles and paper doll use
-// characters[0].
+// Vanilla JS, no build step. Every node is built with createElement/textContent, never
+// innerHTML, because data/*.json relays strings from external services (QE, Raider.io, error
+// messages). Those strings always end up as literal text. Nothing from the data reaches an
+// href or src unless it passes one of the validators below.
 
-// ---------------------------------------------------------------------
-// Config: things older data does not tell us.
-//
-// Characters carry "class" and "spec" (e.g. "Priest" / "Holy"). Runs published
-// before those fields existed fall back to this per-name spec label.
-// ---------------------------------------------------------------------
-const CONFIG = {
-  characterSpecByName: {
-    Shiftheal: "Holy Priest",
-  },
-};
-
-// ---------------------------------------------------------------------
-// Small DOM helpers -- the only way nodes get built on this page.
-// ---------------------------------------------------------------------
-
-/**
- * Create an element without ever touching innerHTML.
- * @param {string} tag
- * @param {{className?:string, text?:string, attrs?:Object<string,string>, on?:Object<string,Function>}} [opts]
- * @param {Array<Node|string|null|undefined>} [kids]
- */
+// ---------------------------------------------------------------------------------------------
+// DOM helpers: the only way nodes get built on this page.
+// ---------------------------------------------------------------------------------------------
 function h(tag, opts, kids) {
   const node = document.createElement(tag);
   opts = opts || {};
@@ -43,42 +21,77 @@ function h(tag, opts, kids) {
   if (typeof opts.text === "string") node.textContent = opts.text;
   if (opts.attrs) {
     for (const [k, v] of Object.entries(opts.attrs)) {
-      if (v !== null && v !== undefined) node.setAttribute(k, v);
+      if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v === true ? "" : v);
     }
   }
-  if (opts.on) {
-    for (const [ev, fn] of Object.entries(opts.on)) node.addEventListener(ev, fn);
-  }
+  if (opts.on) for (const [ev, fn] of Object.entries(opts.on)) node.addEventListener(ev, fn);
+  if (opts.vars) for (const [k, v] of Object.entries(opts.vars)) node.style.setProperty(k, v);
   (kids || []).forEach((kid) => {
-    if (kid === null || kid === undefined) return;
+    if (kid === null || kid === undefined || kid === false) return;
     node.appendChild(typeof kid === "string" ? document.createTextNode(kid) : kid);
   });
   return node;
 }
-
 function clear(node) {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
 
-// ---------------------------------------------------------------------
-// Security-critical validation. Nothing from data/*.json reaches an href
-// unless it passes one of these.
-// ---------------------------------------------------------------------
+// Drawn icons, one stroke family (2px, round caps). Path data are constants, never data.
+const ICONS = {
+  check: { vb: "0 0 12 12", d: "M2 6.5 5 9.5 10.5 3", stroke: true },
+  ext: { vb: "0 0 12 12", d: "M4.5 2.5h5v5M9.5 2.5 3 9", stroke: true },
+  up: { vb: "0 0 12 12", d: "M6 10V2.5M2.8 5.5 6 2.3l3.2 3.2", stroke: true },
+  warn: { vb: "0 0 16 16", d: "M8 1.8 15 14H1ZM8 6.2v3.6M8 11.6v.4", stroke: true },
+  x: { vb: "0 0 12 12", d: "M3 3l6 6M9 3 3 9", stroke: true },
+  plus: { vb: "0 0 12 12", d: "M6 2.5v7M2.5 6h7", stroke: true },
+  minus: { vb: "0 0 12 12", d: "M2.5 6h7", stroke: true },
+  mark: { vb: "0 0 18 18", d: "M4.2 4.2a6.8 6.8 0 0 0 0 9.6M13.8 4.2a6.8 6.8 0 0 1 0 9.6", stroke: true, dot: true },
+  sort: { vb: "0 0 12 12", d: "M3.5 4.5 6 2l2.5 2.5M3.5 7.5 6 10l2.5-2.5", stroke: true },
+};
+function icon(name, cls) {
+  const def = ICONS[name];
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", def.vb);
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("class", `ico ico--${name}${cls ? " " + cls : ""}`);
+  if (def.dot) {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("cx", "9");
+    c.setAttribute("cy", "9");
+    c.setAttribute("r", "3");
+    c.setAttribute("fill", "currentColor");
+    svg.appendChild(c);
+  }
+  const p = document.createElementNS(NS, "path");
+  p.setAttribute("d", def.d);
+  if (def.stroke) {
+    p.setAttribute("fill", "none");
+    p.setAttribute("stroke", "currentColor");
+    p.setAttribute("stroke-width", name === "mark" ? "1.8" : "2");
+    p.setAttribute("stroke-linecap", "round");
+    p.setAttribute("stroke-linejoin", "round");
+  } else {
+    p.setAttribute("fill", "currentColor");
+  }
+  svg.appendChild(p);
+  return svg;
+}
 
+// ---------------------------------------------------------------------------------------------
+// Security-critical validation. Every URL or image path built from data goes through here.
+// ---------------------------------------------------------------------------------------------
 function safePrefixedUrl(value, prefix) {
   return typeof value === "string" && value.startsWith(prefix) ? value : null;
 }
-
 function isReportUrl(url) {
   return safePrefixedUrl(url, "https://questionablyepic.com/");
 }
-
 function isGithubUrl(url) {
   return safePrefixedUrl(url, "https://github.com/");
 }
-
-/** The character's Raider.io profile, built from validated parts, never taken from the data. */
 function raiderioProfileUrl(character) {
+  if (!character) return null;
   const region = String(character.region || "").toLowerCase();
   const realm = String(character.realm || "").toLowerCase();
   const name = String(character.name || "");
@@ -86,9 +99,6 @@ function raiderioProfileUrl(character) {
   if (!/^\p{L}{2,12}$/u.test(name)) return null;
   return `https://raider.io/characters/${region}/${realm}/${encodeURIComponent(name)}`;
 }
-
-/** Build a Wowhead item URL ourselves from validated integer ids -- never
- * from a raw string handed over by the data file. */
 function wowheadItemUrl(itemId, bonusIds, ilvl) {
   const id = Number(itemId);
   if (!Number.isInteger(id) || id <= 0) return null;
@@ -96,66 +106,58 @@ function wowheadItemUrl(itemId, bonusIds, ilvl) {
   const params = [];
   if (Array.isArray(bonusIds) && bonusIds.length > 0) {
     const nums = bonusIds.map(Number);
-    if (nums.every((n) => Number.isInteger(n) && n >= 0)) {
-      params.push(`bonus=${nums.join(":")}`);
-    }
+    if (nums.every((n) => Number.isInteger(n) && n >= 0)) params.push(`bonus=${nums.join(":")}`);
   }
   const lvl = Number(ilvl);
   if (Number.isInteger(lvl) && lvl > 0) params.push(`ilvl=${lvl}`);
   if (params.length) url += `?${params.join("&")}`;
   return url;
 }
-
-/**
- * Render a link if `url` is non-null (already validated by the caller),
- * otherwise render the same label as plain text. External links always get
- * target=_blank + rel=noopener noreferrer.
- */
+// Item icons: a validated icon name onto a fixed CDN path, never taken as a URL.
+function wowIconUrl(name) {
+  return typeof name === "string" && /^[a-z0-9_-]{1,80}$/.test(name)
+    ? `https://wow.zamimg.com/images/wow/icons/medium/${name}.jpg`
+    : null;
+}
+// Boss heads: self-hosted, by an integer display id from bossart.js.
+function bossHeadUrl(displayId) {
+  return Number.isInteger(displayId) && displayId > 0 ? `img/boss/head-${displayId}.webp` : null;
+}
+const RUN_ID_RE = /^[A-Za-z0-9_-]+$/;
+function runDataUrl(id) {
+  return typeof id === "string" && RUN_ID_RE.test(id) ? `data/runs/${id}.json` : null;
+}
 function linkOrText(url, label, opts) {
   opts = opts || {};
   if (url) {
     return h("a", {
       className: opts.className,
       text: label,
-      attrs: { href: url, target: "_blank", rel: "noopener noreferrer" },
-    });
+      attrs: { href: url, target: "_blank", rel: "noopener noreferrer", title: opts.title, ...(opts.attrs || {}) },
+    }, opts.kids);
   }
-  return h("span", { className: opts.className, text: label });
+  return h("span", { className: opts.className, text: label, attrs: { title: opts.title } }, opts.kids);
+}
+/** A link with a drawn external-link mark after the label. */
+function extLink(url, label, className) {
+  if (!url) return h("span", { className, text: label });
+  return h("a", { className: `ext ${className || ""}`, attrs: { href: url, target: "_blank", rel: "noopener noreferrer" } }, [
+    h("span", { text: label }),
+    icon("ext"),
+  ]);
 }
 
-// ---------------------------------------------------------------------
-// Formatting helpers.
-// ---------------------------------------------------------------------
-
-function capitalize(str) {
-  if (!str) return "";
-  return str.charAt(0).toUpperCase() + str.slice(1);
+// ---------------------------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------------------------
+function capitalize(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
 }
-
-function realmRegionLabel(realm, region) {
-  if (!realm && !region) return "";
-  const r = realm ? capitalize(String(realm)) : "";
-  const g = region ? String(region).toUpperCase() : "";
-  return [r, g].filter(Boolean).join(" ");
-}
-
-function specLabel(character) {
-  const { spec, class: cls, name } = character;
-  if (typeof spec === "string" && typeof cls === "string" && spec && cls) return `${spec} ${cls}`;
-  // Runs published before the summary carried class/spec. hasOwn, so a character called
-  // "constructor" doesn't pick up Object.prototype.
-  return Object.hasOwn(CONFIG.characterSpecByName, name)
-    ? CONFIG.characterSpecByName[name]
-    : t("unknownSpec");
-}
-
 function parseDate(iso) {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return iso && !Number.isNaN(d.getTime()) ? d : null;
 }
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
+const DAY_MS = 86400000;
 function relativeTime(iso) {
   const d = parseDate(iso);
   if (!d) return t("unknownTime");
@@ -171,109 +173,86 @@ function relativeTime(iso) {
   if (day < 30) return rtf.format(-day, "day");
   return d.toLocaleDateString(locale(), { year: "numeric", month: "short", day: "numeric" });
 }
-
 function absoluteTime(iso) {
   const d = parseDate(iso);
-  if (!d) return String(iso);
-  return d.toLocaleString(locale(), { dateStyle: "full", timeStyle: "medium" });
+  return d ? d.toLocaleString(locale(), { dateStyle: "full", timeStyle: "medium" }) : String(iso || "");
 }
-
+function shortDate(iso) {
+  const d = parseDate(iso);
+  return d
+    ? d.toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Brussels" })
+    : "?";
+}
 const TRIGGERS = new Set(["schedule", "workflow_dispatch", "local"]);
-
-function triggerLabel(trigger) {
-  if (TRIGGERS.has(trigger)) return t(`trigger_${trigger}`);
-  return trigger ? String(trigger) : t("unknownTrigger");
+function triggerLabel(tr) {
+  return TRIGGERS.has(tr) ? t(`trigger_${tr}`) : tr ? String(tr) : t("unknownTrigger");
 }
-
-const SLOTS = new Set([
-  "head", "neck", "shoulder", "back", "chest", "shirt", "tabard", "wrist", "hands", "waist",
-  "legs", "feet", "finger1", "finger2", "trinket1", "trinket2", "main_hand", "off_hand",
-]);
-
+const SLOTS = new Set(["head", "neck", "shoulder", "back", "chest", "shirt", "tabard", "wrist", "hands", "waist",
+  "legs", "feet", "finger1", "finger2", "trinket1", "trinket2", "main_hand", "off_hand"]);
 function slotLabel(slot) {
   return SLOTS.has(slot) ? t(`slot_${slot}`) : capitalize(String(slot || "").replace(/_/g, " "));
 }
-
-// Dungeon dropDifficulty is a Mythic+ key index, per the pipeline's spec.
+// QE's slot names on the upgrade rows, shown in the page language.
+const QE_SLOT_KEYS = { Finger: "qeslot_Finger", Trinket: "qeslot_Trinket", "1H Weapon": "qeslot_1H", "2H Weapon": "qeslot_2H",
+  WeaponMainHand: "qeslot_1H", Offhand: "slot_off_hand", Shield: "qeslot_Shield" };
+function qeSlotLabel(slot) {
+  if (typeof slot !== "string" || !slot) return "?";
+  if (Object.hasOwn(QE_SLOT_KEYS, slot)) return t(QE_SLOT_KEYS[slot]);
+  const lower = slot.toLowerCase();
+  return SLOTS.has(lower) ? slotLabel(lower) : slot;
+}
 const DUNGEON_KEY_LABELS = ["M0", "+2/3", "+4", "+5", "+6", "+7", "+8/9", "+10"];
-
-function sourceLabel(dropLoc, dropDifficulty) {
-  if (dropLoc === "Raid") {
-    if (dropDifficulty === 2) return "Raid · Heroic";
-    if (dropDifficulty === 3) return "Raid · Mythic";
-    if (dropDifficulty !== null && dropDifficulty !== undefined && dropDifficulty !== "") {
-      return t("raidDifficulty", { d: dropDifficulty });
-    }
-    return "Raid";
+// Game terms (Raid, Dungeon, difficulties) stay English in both languages.
+function whereLabel(u) {
+  if (u.dropLoc === "Raid") return u.dropDifficulty === 3 ? "Raid · Mythic" : u.dropDifficulty === 2 ? "Raid · Heroic" : "Raid";
+  if (u.dropLoc === "Dungeon") {
+    const i = Number(u.dropDifficulty);
+    return Number.isInteger(i) && i >= 0 && i < DUNGEON_KEY_LABELS.length ? `Dungeon · ${DUNGEON_KEY_LABELS[i]}` : "Dungeon";
   }
-  if (dropLoc === "Dungeon") {
-    const idx = Number(dropDifficulty);
-    if (Number.isInteger(idx) && idx >= 0 && idx < DUNGEON_KEY_LABELS.length) {
-      return `Dungeon · ${DUNGEON_KEY_LABELS[idx]}`;
-    }
-    return "Dungeon";
-  }
-  if (dropLoc === "Delves") return "Delves";
-  if (dropLoc === "Crafted") return "Crafted";
-  return dropLoc ? String(dropLoc) : t("unknownSource");
+  return u.dropLoc ? String(u.dropLoc) : t("unknownSource");
 }
-
-// dropSource is the raid boss or dungeon name, from QE's item database (runs
-// published before it existed, and Delves/crafted items, have none).
-function dropSourceName(upgrade) {
-  return typeof upgrade.dropSource === "string" && upgrade.dropSource ? upgrade.dropSource : null;
+function dropSourceName(u) {
+  return typeof u.dropSource === "string" && u.dropSource ? u.dropSource : null;
 }
-
+function numOrNull(v) {
+  const n = Number(v);
+  return v !== null && v !== undefined && v !== "" && Number.isFinite(n) ? n : null;
+}
 const DROP_LOC_FILTERS = ["All", "Raid", "Dungeon", "Delves", "Crafted"];
 const REPORT_DIFFICULTIES = ["Heroic", "Mythic"];
 
-function numOrNull(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-// ---------------------------------------------------------------------
-// Upgrade computation: percDiff > 0, deduped per item, preferring the
-// "max" dropType entry, else the highest percDiff.
-// ---------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------
+// Computation
+// ---------------------------------------------------------------------------------------------
+/** One row per item: its best result (the max-upgrade row wins), upgrades only, best first. */
 function computeUpgrades(results) {
   if (!Array.isArray(results)) return [];
   const byItem = new Map();
   for (const r of results) {
-    if (typeof r.percDiff !== "number" || !(r.percDiff > 0)) continue;
-    const key = r.item;
-    const existing = byItem.get(key);
+    if (!r || typeof r.percDiff !== "number" || !(r.percDiff > 0)) continue;
+    const existing = byItem.get(r.item);
     if (!existing) {
-      byItem.set(key, r);
+      byItem.set(r.item, r);
       continue;
     }
-    if (existing.dropType === "max") continue; // already locked in the max entry
-    if (r.dropType === "max" || r.percDiff > existing.percDiff) byItem.set(key, r);
+    if (existing.dropType === "max") continue;
+    if (r.dropType === "max" || r.percDiff > existing.percDiff) byItem.set(r.item, r);
   }
   return Array.from(byItem.values()).sort((a, b) => b.percDiff - a.percDiff);
 }
-
-// ---------------------------------------------------------------------
-// Power to gain: the biggest upgrade in every slot, added up. Rings and
-// trinkets count their best two items; weapons count a two-hander or a
-// one-hander plus an off-hand, whichever adds more. QE measures each gain
-// against the current gear, so the total is an estimate, not a sim of the
-// whole set. Results only carry a slot (QE's slot names) since it was added
-// to the pipeline, so older runs give null.
-// ---------------------------------------------------------------------
 const PAIRED_SLOTS = new Set(["Finger", "Trinket"]);
 const TWO_HAND_SLOTS = new Set(["2H Weapon"]);
 const ONE_HAND_SLOTS = new Set(["1H Weapon", "WeaponMainHand"]);
 const OFF_HAND_SLOTS = new Set(["Offhand", "Shield"]);
-
+/** The biggest upgrade in every slot added up (two rings/trinkets; 2H vs 1H + off-hand). */
 function computePowerToGain(upgrades) {
-  const bySlot = new Map(); // slot -> gains, best first (upgrades come sorted)
-  const weapons = { twoHand: [], oneHand: [], offHand: [] };
+  const bySlot = new Map();
+  const w = { two: [], one: [], off: [] };
   for (const u of upgrades) {
     if (typeof u.slot !== "string" || !u.slot) continue;
-    if (TWO_HAND_SLOTS.has(u.slot)) weapons.twoHand.push(u.percDiff);
-    else if (ONE_HAND_SLOTS.has(u.slot)) weapons.oneHand.push(u.percDiff);
-    else if (OFF_HAND_SLOTS.has(u.slot)) weapons.offHand.push(u.percDiff);
+    if (TWO_HAND_SLOTS.has(u.slot)) w.two.push(u.percDiff);
+    else if (ONE_HAND_SLOTS.has(u.slot)) w.one.push(u.percDiff);
+    else if (OFF_HAND_SLOTS.has(u.slot)) w.off.push(u.percDiff);
     else {
       if (!bySlot.has(u.slot)) bySlot.set(u.slot, []);
       bySlot.get(u.slot).push(u.percDiff);
@@ -281,1386 +260,1196 @@ function computePowerToGain(upgrades) {
   }
   const picked = [];
   for (const [slot, gains] of bySlot) picked.push(...gains.slice(0, PAIRED_SLOTS.has(slot) ? 2 : 1));
-  const twoHand = weapons.twoHand.slice(0, 1);
-  const split = [...weapons.oneHand.slice(0, 1), ...weapons.offHand.slice(0, 1)];
-  const sum = (gains) => gains.reduce((a, b) => a + b, 0);
-  picked.push(...(sum(twoHand) >= sum(split) ? twoHand : split));
-  if (picked.length === 0) return null;
-  return { pct: sum(picked), items: picked.length };
+  const sum = (g) => g.reduce((a, b) => a + b, 0);
+  const two = w.two.slice(0, 1);
+  const split = [...w.one.slice(0, 1), ...w.off.slice(0, 1)];
+  picked.push(...(sum(two) >= sum(split) ? two : split));
+  return picked.length ? { pct: sum(picked), items: picked.length } : null;
 }
-
-
-/** The 16 gear slots that make up "average item level" -- shirt and tabard
- * are cosmetic and don't count. */
-const ILVL_SLOTS = [
-  "head", "neck", "shoulder", "back", "chest", "wrist", "hands", "waist",
-  "legs", "feet", "finger1", "finger2", "trinket1", "trinket2", "main_hand", "off_hand",
-];
-
+const ILVL_SLOTS = ["head", "neck", "shoulder", "back", "chest", "wrist", "hands", "waist",
+  "legs", "feet", "finger1", "finger2", "trinket1", "trinket2", "main_hand", "off_hand"];
 function computeAvgIlvl(gear) {
-  const bySlot = new Map((Array.isArray(gear) ? gear : []).map((g) => [g.slot, g]));
-  const values = [];
-  for (const slot of ILVL_SLOTS) {
-    const g = bySlot.get(slot);
-    const lvl = g ? numOrNull(g.ilvl) : null;
-    if (lvl !== null) values.push(lvl);
-  }
-  if (values.length === 0) return { avg: null, count: 0, total: ILVL_SLOTS.length };
-  const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
-  return { avg, count: values.length, total: ILVL_SLOTS.length };
+  const by = new Map((Array.isArray(gear) ? gear : []).map((g) => [g.slot, g]));
+  const vals = ILVL_SLOTS.map((s) => (by.get(s) ? numOrNull(by.get(s).ilvl) : null)).filter((v) => v !== null);
+  return { avg: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null, count: vals.length, total: ILVL_SLOTS.length };
 }
-
-/** Links to a run's QE reports ("Heroic  Mythic ✓") for the history rows. The check mark
- * marks the report that was uploaded (reports[].uploaded); only uploads get one. A report
- * whose generation failed is shown in the error colour. */
-function reportLinksRow(reports, className) {
-  const byDiff = new Map((Array.isArray(reports) ? reports : []).map((r) => [r.difficulty, r]));
-  const row = h("span", { className: className || "report-links" });
-  for (const diff of REPORT_DIFFICULTIES) {
-    const r = byDiff.get(diff);
-    if (!r) continue;
-    const uploaded = r.uploaded === true && !r.error;
-    const link = linkOrText(r.error ? null : isReportUrl(r.report_url), diff, {
-      className: `report-link${r.error ? " report-link--fail" : ""}${uploaded ? " report-link--up" : ""}`,
-    });
-    if (uploaded) link.appendChild(h("span", { className: "report-link__check", text: " ✓" }));
-    const title = r.error ? "reportError" : uploaded ? "reportTitleUploaded" : "reportTitle";
-    link.setAttribute("title", t(title, { diff }));
-    link.addEventListener("click", (e) => e.stopPropagation()); // don't also open the run
-    row.appendChild(link);
-  }
-  return row;
-}
-
-// ---------------------------------------------------------------------
-// Wowhead tooltips: config must exist before the script loads, and we
-// inject the script ourselves so there is no inline <script> in the HTML.
-// ---------------------------------------------------------------------
-function setupWowheadTooltips() {
-  window.whTooltips = { colorLinks: true, iconizeLinks: true, renameLinks: true };
-  const script = document.createElement("script");
-  script.src = "https://wow.zamimg.com/js/tooltips.js";
-  script.async = true;
-  script.addEventListener("load", refreshWowheadLinks);
-  document.head.appendChild(script);
-}
-
-function refreshWowheadLinks() {
-  if (window.$WowheadPower && typeof window.$WowheadPower.refreshLinks === "function") {
-    window.$WowheadPower.refreshLinks();
-  }
-}
-
-// ---------------------------------------------------------------------
-// Wowhead name cache. renameLinks:true rewrites a link's text once its
-// tooltip data arrives, asynchronously. Every re-render (a filter chip, a
-// tab switch, "show all") rebuilds those links from scratch as plain
-// "Item <id>" placeholders, which would otherwise revert an already-known
-// name back to the placeholder until Wowhead answers again -- a visible
-// flash on every interaction. A MutationObserver watches for Wowhead's own
-// text edits and remembers them, so a rebuilt link can use the real name
-// immediately instead of the placeholder.
-// ---------------------------------------------------------------------
-const wowheadNameCache = new Map();
-const WOWHEAD_ITEM_ID_RE = /item=(\d+)/;
-const PLACEHOLDER_NAME_RE = /^Item \d+$/;
-
-/** The label to use for an item link: the data-provided name if there is
- * one, else a name Wowhead already resolved for this item id, else the
- * "Item <id>" placeholder Wowhead's renameLinks will replace. */
-function cachedItemLabel(itemId, providedName) {
-  if (typeof providedName === "string" && providedName) return providedName;
-  const id = Number(itemId);
-  if (Number.isInteger(id) && wowheadNameCache.has(id)) return wowheadNameCache.get(id);
-  return Number.isInteger(id) ? `Item ${id}` : "Unknown item";
-}
-
-function recordWowheadLinkName(link) {
-  if (!link || link.tagName !== "A") return;
-  const href = link.getAttribute("href") || "";
-  const m = WOWHEAD_ITEM_ID_RE.exec(href);
-  if (!m) return;
-  const txt = (link.textContent || "").trim();
-  if (!txt || PLACEHOLDER_NAME_RE.test(txt) || txt === "Unknown item") return;
-  wowheadNameCache.set(Number(m[1]), txt);
-}
-
-let wowheadObserver = null;
-function observeWowheadNames() {
-  if (wowheadObserver || typeof MutationObserver === "undefined") return;
-  wowheadObserver = new MutationObserver((records) => {
-    records.forEach((rec) => {
-      let node = rec.target;
-      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-      if (!node) return;
-      if (node.tagName === "A") {
-        recordWowheadLinkName(node);
-      } else if (typeof node.querySelectorAll === "function") {
-        node.querySelectorAll('a[href*="wowhead.com/item="]').forEach(recordWowheadLinkName);
-      }
-    });
+function usefulCrestUpgrades(list) {
+  return list.filter((u) => {
+    const g = numOrNull(u.gain_pct);
+    return g === null || g > 0;
   });
-  wowheadObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
 }
-
-// ---------------------------------------------------------------------
-// Fetching.
-// ---------------------------------------------------------------------
-async function fetchJson(url) {
-  let res;
-  try {
-    res = await fetch(url, { cache: "no-store" });
-  } catch (err) {
-    throw new Error(`Network error loading ${url}`);
-  }
-  if (!res.ok) throw new Error(`${url} responded ${res.status}`);
-  try {
-    return await res.json();
-  } catch (err) {
-    throw new Error(`${url} was not valid JSON`);
-  }
-}
-
-const RUN_ID_RE = /^[A-Za-z0-9_-]+$/;
-
-function runDataUrl(id) {
-  if (typeof id !== "string" || !RUN_ID_RE.test(id)) return null;
-  return `data/runs/${id}.json`;
-}
-
-// ---------------------------------------------------------------------
-// Error capsule -- shown inline, never a blank page.
-// ---------------------------------------------------------------------
-function errorCapsule(message) {
-  return h("div", { className: "error-capsule", attrs: { role: "alert" } }, [
-    h("span", { className: "error-capsule__icon", text: "!" }),
-    h("span", { text: message }),
-  ]);
-}
-
-// ---------------------------------------------------------------------
-// App state.
-// ---------------------------------------------------------------------
-const state = {
-  index: null,
-  activeRunId: null,
-  reportUi: new Map(), // "charIdx:difficulty" -> { loc, expanded }
-  reportsTab: "Mythic", // shared tab selection for the single reports card
-  historyExpanded: false,
-  openGroups: new Set(), // history groups (by their newest run id) unfolded by the user
-  runData: null, // the displayed run's full summary, kept to re-render on a language switch
-  previousRuns: new Map(), // run id -> promise of its full summary (null if it failed to load)
-};
-
-function reportUiFor(key) {
-  if (!state.reportUi.has(key)) state.reportUi.set(key, { loc: "All", expanded: false });
-  return state.reportUi.get(key);
-}
-
-// ---------------------------------------------------------------------
-// DOM refs (populated on DOMContentLoaded).
-// ---------------------------------------------------------------------
-let els = {};
-
-function collectEls() {
-  els = {
-    headerCapsules: document.getElementById("headerCapsules"),
-    headerStatus: document.getElementById("headerStatus"),
-    headerUpdated: document.getElementById("headerUpdated"),
-    headerMascot: document.getElementById("headerMascot"),
-    globalError: document.getElementById("globalError"),
-    viewingBanner: document.getElementById("viewingBanner"),
-    tilesContainer: document.getElementById("tilesContainer"),
-    reportsContainer: document.getElementById("reportsContainer"),
-    crestContainer: document.getElementById("crestContainer"),
-    gearContainer: document.getElementById("gearContainer"),
-    historyContainer: document.getElementById("historyContainer"),
-    historyShowMoreWrap: document.getElementById("historyShowMoreWrap"),
-  };
-}
-
-// ---------------------------------------------------------------------
-// Header (always reflects the true latest run from index.json).
-// ---------------------------------------------------------------------
-function renderHeader(indexData) {
-  clear(els.headerCapsules);
-  clear(els.headerStatus);
-
-  const runs = Array.isArray(indexData.runs) ? indexData.runs : [];
-  const latest = runs[0];
-  if (!latest) {
-    els.headerStatus.appendChild(h("span", { className: "pill pill--muted", text: t("noRuns") }));
-    els.headerUpdated.textContent = "";
-    return;
-  }
-
-  const chars = Array.isArray(latest.characters) ? latest.characters : [];
-  chars.forEach((c) => {
-    els.headerCapsules.appendChild(characterCapsule(c));
-  });
-
-  const statusPill = h("span", {
-    className: `pill ${latest.ok ? "pill--ok" : "pill--fail"}`,
-    text: latest.ok ? t("latestOk") : t("latestFailed"),
-  });
-  els.headerStatus.appendChild(statusPill);
-
-  const ghUrl = isGithubUrl(latest.url);
-  if (ghUrl) {
-    els.headerStatus.appendChild(
-      linkOrText(ghUrl, t("viewOnGithub"), { className: "pill pill--link" })
-    );
-  }
-
-  const when = latest.finished_at || latest.started_at;
-  els.headerUpdated.textContent = t("updated", { when: relativeTime(when) });
-  els.headerUpdated.setAttribute("title", absoluteTime(when));
-}
-
-function characterCapsule(character) {
-  const { name, realm, region } = character;
-  const rr = realmRegionLabel(realm, region);
-  const parts = [name || t("unknownCharacter"), specLabel(character)];
-  if (rr) parts.push(rr);
-  return h("span", { className: "capsule" }, [
-    h("span", { className: "capsule__dot" }),
-    h("span", { className: "capsule__text", text: parts.join(" · ") }),
-  ]);
-}
-
-// ---------------------------------------------------------------------
-// Run history: compact list, ~8 visible + "show more". Still the source
-// for #run= deep links and click-to-select.
-// ---------------------------------------------------------------------
-const HISTORY_VISIBLE = 8;
-
-/** Fold runs in a row that found the same (same digest, same OK/failed) into one group,
- * newest first. Runs from before the index carried a digest each stay on their own. */
+/** Consecutive runs with the same results digest (and the same ok) fold into one group. */
 function groupRuns(runs) {
   const groups = [];
   for (const run of runs) {
     const last = groups[groups.length - 1];
     const head = last && last[0];
-    const same =
-      head &&
-      typeof run.digest === "string" &&
-      run.digest === head.digest &&
-      Boolean(run.ok) === Boolean(head.ok);
-    if (same) last.push(run);
+    if (head && typeof run.digest === "string" && run.digest === head.digest && Boolean(run.ok) === Boolean(head.ok)) last.push(run);
     else groups.push([run]);
   }
   return groups;
 }
-
-function renderHistory(indexData) {
-  clear(els.historyContainer);
-  clear(els.historyShowMoreWrap);
-  const runs = Array.isArray(indexData.runs) ? indexData.runs : [];
-  if (runs.length === 0) {
-    els.historyContainer.appendChild(h("p", { className: "muted-note", text: t("noRunsRecorded") }));
-    return;
+const QE_SLOT_TO_GEAR = {
+  Head: ["head"], Neck: ["neck"], Shoulder: ["shoulder"], Back: ["back"], Chest: ["chest"], Wrist: ["wrist"],
+  Hands: ["hands"], Waist: ["waist"], Legs: ["legs"], Feet: ["feet"], Finger: ["finger1", "finger2"],
+  Trinket: ["trinket1", "trinket2"], "2H Weapon": ["main_hand"], "1H Weapon": ["main_hand"],
+  WeaponMainHand: ["main_hand"], Offhand: ["off_hand"], Shield: ["off_hand"],
+};
+function bestUpgradeBySlot(character, diff) {
+  const gearBySlot = new Map((character.gear || []).map((g) => [g.slot, g]));
+  const report = (character.reports || []).find((r) => r.difficulty === diff && !r.error);
+  const by = new Map();
+  if (!report) return by;
+  for (const u of computeUpgrades(report.results)) {
+    const targets = Object.hasOwn(QE_SLOT_TO_GEAR, u.slot) ? QE_SLOT_TO_GEAR[u.slot] : [];
+    const wearing = (s) => gearBySlot.get(s)?.item_id === u.item;
+    const ordered = [...targets.filter(wearing), ...targets.filter((s) => !wearing(s))];
+    const free = ordered.find((s) => !by.has(s));
+    if (free) by.set(free, u);
   }
+  return by;
+}
 
-  const groups = groupRuns(runs);
-  const shown = state.historyExpanded ? groups : groups.slice(0, HISTORY_VISIBLE);
-  shown.forEach((group) => {
-    const [head, ...rest] = group;
-    const open = state.openGroups.has(head.id);
-    els.historyContainer.appendChild(historyRow(head, rest.length ? { count: rest.length, open } : null));
-    if (open) rest.forEach((run) => els.historyContainer.appendChild(historyRow(run, null, true)));
+// ---------------------------------------------------------------------------------------------
+// Raid nights (summary.raid_night, from wishlist.toml [raid_night]): days, "HH:MM" start/end,
+// an IANA time zone. The next one is computed in that zone, whatever the viewer's zone is.
+// ---------------------------------------------------------------------------------------------
+const WEEKDAY_INDEX = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+const HHMM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+function parseRaidNight(cfg) {
+  if (!cfg || typeof cfg !== "object" || !Array.isArray(cfg.days)) return null;
+  const days = cfg.days.map((d) => WEEKDAY_INDEX[String(d).toLowerCase()]).filter((d) => d !== undefined);
+  const s = HHMM_RE.exec(String(cfg.start || ""));
+  const e = HHMM_RE.exec(String(cfg.end || ""));
+  const tz = typeof cfg.timezone === "string" ? cfg.timezone : "";
+  if (!days.length || !s || !e || !tz) return null;
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz });
+  } catch (err) {
+    return null;
+  }
+  return { days: new Set(days), start: [Number(s[1]), Number(s[2])], end: [Number(e[1]), Number(e[2])], tz };
+}
+function tzParts(date, tz) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const o = {};
+  parts.forEach((p) => {
+    if (p.type !== "literal") o[p.type] = Number(p.value);
   });
-
-  if (groups.length > HISTORY_VISIBLE) {
-    const btn = h("button", {
-      className: "pill pill--action",
-      text: state.historyExpanded ? t("showFewer") : t("showAll", { n: runs.length }),
-      attrs: { type: "button" },
-    });
-    btn.addEventListener("click", () => {
-      state.historyExpanded = !state.historyExpanded;
-      renderHistory(indexData);
-    });
-    els.historyShowMoreWrap.appendChild(btn);
-  }
-
-  updateHistorySelectionUI();
+  return o;
 }
-
-/** One history row. `fold` ({count, open}) adds the "+N runs with the same results" toggle
- * to a group's newest run; `nested` marks a run shown inside an unfolded group. */
-function historyRow(run, fold, nested) {
-  const row = h("div", {
-    className: `history-row${nested ? " history-row--nested" : ""}`,
-    attrs: { tabindex: "0", role: "link", "data-run-id": run.id },
-  });
-  row.addEventListener("click", () => navigateToRun(run.id));
-  row.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      navigateToRun(run.id);
-    }
-  });
-
-  row.appendChild(h("span", { className: "history-row__dot", attrs: { "aria-hidden": "true" } }));
-  row.appendChild(
-    h("span", {
-      className: "history-row__time mono",
-      text: relativeTime(run.started_at),
-      attrs: { title: absoluteTime(run.started_at) },
-    })
-  );
-  row.appendChild(h("span", { className: "history-row__trigger", text: triggerLabel(run.trigger) }));
-  row.appendChild(
-    h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? t("ok") : t("failed") })
-  );
-
-  const chars = Array.isArray(run.characters) ? run.characters : [];
-  const allReports = chars.flatMap((c) => (Array.isArray(c.reports) ? c.reports : []));
-  row.appendChild(reportLinksRow(allReports));
-
-  if (fold) {
-    const toggle = h("button", {
-      className: `history-fold${fold.open ? " is-open" : ""}`,
-      text: t("sameResults", { n: fold.count }),
-      attrs: {
-        type: "button",
-        "aria-expanded": String(fold.open),
-        title: fold.open ? t("sameResultsHide") : null,
-      },
-    });
-    toggle.addEventListener("click", (e) => {
-      e.stopPropagation(); // fold/unfold only, don't also open the run
-      if (state.openGroups.has(run.id)) state.openGroups.delete(run.id);
-      else state.openGroups.add(run.id);
-      renderHistory(state.index);
-    });
-    row.appendChild(toggle);
+/** The UTC instant of a wall-clock time in `tz` (two passes, so DST changes land right). */
+function zonedToUtc(y, m, d, hh, mm, tz) {
+  const want = Date.UTC(y, m - 1, d, hh, mm);
+  let guess = want;
+  for (let i = 0; i < 2; i++) {
+    const p = tzParts(new Date(guess), tz);
+    const shown = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+    guess += want - shown;
   }
-
-  const ghUrl = isGithubUrl(run.url);
-  const footLink = linkOrText(ghUrl, "GitHub ↗", { className: "history-row__gh" });
-  footLink.addEventListener("click", (e) => e.stopPropagation());
-  row.appendChild(footLink);
-
-  return row;
+  return new Date(guess);
 }
-
-function updateHistorySelectionUI() {
-  const rows = els.historyContainer.querySelectorAll(".history-row");
-  rows.forEach((row) => {
-    const isSelected = row.getAttribute("data-run-id") === state.activeRunId;
-    row.classList.toggle("is-selected", isSelected);
-    if (isSelected) row.setAttribute("aria-current", "true");
-    else row.removeAttribute("aria-current");
-  });
-}
-
-// ---------------------------------------------------------------------
-// Viewing banner ("viewing run X - back to latest").
-// ---------------------------------------------------------------------
-function renderViewingBanner(runId, isLatest) {
-  clear(els.viewingBanner);
-  document.getElementById("reportsHeading").textContent = isLatest
-    ? t("latestReports")
-    : t("reportsFromRun");
-  if (isLatest) {
-    els.viewingBanner.hidden = true;
-    return;
-  }
-  els.viewingBanner.hidden = false;
-  els.viewingBanner.appendChild(h("span", { text: t("viewingRun") }));
-  els.viewingBanner.appendChild(h("b", { className: "mono", text: runId }));
-  const backBtn = h("button", {
-    className: "pill pill--action",
-    text: t("backToLatest"),
-    attrs: { type: "button" },
-  });
-  backBtn.addEventListener("click", navigateToLatest);
-  els.viewingBanner.appendChild(backBtn);
-}
-
-// ---------------------------------------------------------------------
-// Peon mascot -- follows the DISPLAYED run (not necessarily the true
-// latest), so it lives outside renderHeader() and is driven from
-// renderRunData() and the loader error paths instead.
-// ---------------------------------------------------------------------
-function renderMascot(runOk) {
-  clear(els.headerMascot);
-  if (!runOk) {
-    els.headerMascot.hidden = true;
-    return;
-  }
-  els.headerMascot.hidden = false;
-
-  const reduceMotion =
-    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  let media;
-  if (reduceMotion) {
-    media = h("img", {
-      className: "mascot__media",
-      attrs: { src: "assets/peon-jobs-done.webp", alt: "Warcraft III peon: Jobs done" },
-    });
-  } else {
-    media = document.createElement("video");
-    media.className = "mascot__media";
-    media.setAttribute("poster", "assets/peon-jobs-done.webp");
-    media.setAttribute("src", "assets/peon-jobs-done.mp4");
-    media.setAttribute("autoplay", "");
-    media.setAttribute("loop", "");
-    media.setAttribute("muted", "");
-    media.setAttribute("playsinline", "");
-    media.setAttribute("aria-label", "Warcraft III peon: Jobs done");
-    media.setAttribute("role", "img");
-    // Chrome only honours autoplay when the *property* is muted too, not
-    // just the attribute.
-    media.muted = true;
-    media.autoplay = true;
-    media.loop = true;
-    media.playsInline = true;
-  }
-
-  els.headerMascot.appendChild(h("div", { className: "mascot-frame" }, [media]));
-
-  if (media.tagName === "VIDEO") {
-    const playPromise = media.play();
-    if (playPromise && typeof playPromise.catch === "function") playPromise.catch(() => {});
-  }
-}
-
-// ---------------------------------------------------------------------
-// Stat tiles -- follow the displayed run, built from characters[0].
-// ---------------------------------------------------------------------
-function tile(label, kids) {
-  return h("div", { className: "tile" }, [
-    h("span", { className: "tile__label", text: label }),
-    h("div", { className: "tile__body" }, kids),
-  ]);
-}
-
-function renderTiles(fullData) {
-  clear(els.tilesContainer);
-  const character = (fullData.characters || [])[0];
-  if (!character) {
-    els.tilesContainer.appendChild(
-      h("p", { className: "muted-note", text: t("noCharacterData") })
-    );
-    return;
-  }
-
-  els.tilesContainer.appendChild(tileBestMythic(character));
-  els.tilesContainer.appendChild(tilePowerToGain(character));
-  els.tilesContainer.appendChild(tileNextCrest(character));
-  els.tilesContainer.appendChild(tileAvgIlvl(character));
-  els.tilesContainer.appendChild(tileLastRun(fullData.run, character));
-}
-
-function tileBestMythic(character) {
-  const reports = Array.isArray(character.reports) ? character.reports : [];
-  const mythic = reports.find((r) => r.difficulty === "Mythic");
-  const upgrades = mythic ? computeUpgrades(mythic.results) : [];
-  if (upgrades.length === 0) {
-    return tile(t("bestMythicUpgrade"), [h("span", { className: "tile__muted", text: t("noUpgrades") })]);
-  }
-  const top = upgrades[0];
-  const url = wowheadItemUrl(top.item, null, top.level);
-  const link = linkOrText(url, cachedItemLabel(top.item), { className: "tile__link" });
-  const boss = dropSourceName(top);
-  const detail = h("div", { className: "tile__detail" }, [
-    h("span", { className: "pill pill--ilvl mono", text: Number.isFinite(top.level) ? String(top.level) : "?" }),
-    h("span", { className: "tile__pct mono", text: fmtPct(top.percDiff) }),
-    boss ? h("span", { className: "tile__rank", text: boss }) : null,
-  ]);
-  return tile(t("bestMythicUpgrade"), [link, detail]);
-}
-
-function tilePowerToGain(character) {
-  const label = t("mythicPowerToGain");
-  const reports = Array.isArray(character.reports) ? character.reports : [];
-  const mythic = reports.find((r) => r.difficulty === "Mythic");
-  const upgrades = mythic ? computeUpgrades(mythic.results) : [];
-  if (upgrades.length === 0) {
-    return tile(label, [h("span", { className: "tile__muted", text: t("noUpgrades") })]);
-  }
-  const power = computePowerToGain(upgrades);
-  if (!power) {
-    return tile(label, [h("span", { className: "tile__muted", text: t("notInRunData") })]);
-  }
-  return tile(label, [
-    h("span", {
-      className: "tile__big tile__big--jade mono",
-      text: fmtPct(power.pct),
-      attrs: { title: t("powerHint") },
-    }),
-    h("span", {
-      className: "tile__muted",
-      text: t("powerNote", { n: power.items }),
-    }),
-  ]);
-}
-
-/** Crest upgrades worth showing: a gain above zero, or no estimate at all (still unknown).
- * A +0.00% item costs crests for nothing, so it's left out. */
-function usefulCrestUpgrades(upgrades) {
-  return upgrades.filter((u) => {
-    const g = numOrNull(u.gain_pct);
-    return g === null || g > 0;
-  });
-}
-
-function tileNextCrest(character) {
-  const label = t("nextCrest");
-  const upgrades = character.crest_upgrades;
-  if (upgrades === null || upgrades === undefined) {
-    return tile(label, [h("span", { className: "tile__muted", text: t("noEstimate") })]);
-  }
-  if (!Array.isArray(upgrades) || upgrades.length === 0) {
-    return tile(label, [h("span", { className: "tile__muted", text: t("allUpgraded") })]);
-  }
-  const useful = usefulCrestUpgrades(upgrades);
-  if (useful.length === 0) {
-    return tile(label, [h("span", { className: "tile__muted", text: t("nothingWorthCrest") })]);
-  }
-  const u = useful[0];
-  const url = wowheadItemUrl(u.item_id, null, u.level);
-  const link = linkOrText(url, cachedItemLabel(u.item_id, u.name), { className: "tile__link" });
-  const line = h("div", { className: "tile__crest-line" }, [
-    h("span", { className: "tile__slot", text: `${slotLabel(String(u.slot || "").toLowerCase())} · ` }),
-    link,
-  ]);
-  const rank = numOrNull(u.rank);
-  const gain = numOrNull(u.gain_pct);
-  const detail = h("div", { className: "tile__detail" }, [
-    h("span", { className: "tile__rank mono", text: `${rank === null ? "?" : rank}/6 → 6/6` }),
-    gain === null
-      ? h("span", { className: "tile__muted", text: t("noEstimateLower") })
-      : h("span", { className: "tile__pct tile__pct--gold mono", text: fmtPct(gain) }),
-  ]);
-  return tile(label, [line, detail]);
-}
-
-function tileAvgIlvl(character) {
-  const { avg, count, total } = computeAvgIlvl(character.gear);
-  const body = [h("span", { className: "tile__big mono", text: avg === null ? "?" : String(avg) })];
-  if (count < total) {
-    body.push(h("span", { className: "tile__muted", text: t("basedOnSlots", { count, total }) }));
-  }
-  return tile(t("avgIlvl"), body);
-}
-
-function tileLastRun(run, character) {
-  if (!run) return tile(t("lastRun"), [h("span", { className: "tile__muted", text: t("unknown") })]);
-  const when = run.finished_at || run.started_at;
-  const body = [
-    h("span", { className: "tile__big", text: relativeTime(when), attrs: { title: absoluteTime(when) } }),
-    h("div", { className: "tile__detail" }, [
-      h("span", { className: `pill pill--sm ${run.ok ? "pill--ok" : "pill--fail"}`, text: run.ok ? t("ok") : t("failed") }),
-    ]),
-  ];
-  return tile(t("lastRun"), body);
-}
-
-// ---------------------------------------------------------------------
-// Reports: one card, Heroic/Mythic tab switch (default Mythic).
-// ---------------------------------------------------------------------
-function renderReportsCard(character, charIdx) {
-  clear(els.reportsContainer);
-  const reports = Array.isArray(character.reports) ? character.reports : [];
-
-  if (character.error) {
-    els.reportsContainer.appendChild(errorCapsule(character.error));
-  }
-  if (character.skipped) {
-    const label = typeof character.skipped === "string" ? t("skippedWhy", { why: character.skipped }) : t("skipped");
-    els.reportsContainer.appendChild(h("span", { className: "pill pill--muted", text: label }));
-  }
-  if (Array.isArray(character.warnings) && character.warnings.length > 0) {
-    const warnRow = h("div", { className: "warning-row" });
-    character.warnings.forEach((w) => warnRow.appendChild(h("span", { className: "pill pill--warn", text: String(w) })));
-    els.reportsContainer.appendChild(warnRow);
-  }
-
-  if (reports.length === 0) {
-    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: t("noReports") }));
-    return;
-  }
-
-  const byDiff = new Map(reports.map((r) => [r.difficulty, r]));
-  const available = REPORT_DIFFICULTIES.filter((d) => byDiff.has(d));
-  if (available.length === 0) {
-    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: t("noReports") }));
-    return;
-  }
-  if (!available.includes(state.reportsTab)) state.reportsTab = available[available.length - 1];
-
-  const wrap = h("section", { className: "rcard-wrap" }, [
-    h("span", { className: "rcard__cap", text: character.name || "Reports" }),
-  ]);
-  const inner = h("div", { className: "rcard" }, [h("div", { className: "rcard__in" })]);
-  const body = inner.firstChild;
-  wrap.appendChild(inner);
-
-  const tabIds = available.map((d) => `tab-${charIdx}-${d}`);
-  const panelIds = available.map((d) => `panel-${charIdx}-${d}`);
-
-  const tablist = h("div", { className: "tablist", attrs: { role: "tablist", "aria-label": t("reportDifficulty") } });
-  const tabButtons = [];
-  available.forEach((diff, i) => {
-    const selected = diff === state.reportsTab;
-    const btn = h("button", {
-      className: `tab${selected ? " is-selected" : ""}`,
-      text: diff,
-      attrs: {
-        role: "tab",
-        type: "button",
-        id: tabIds[i],
-        "aria-selected": String(selected),
-        "aria-controls": panelIds[i],
-        tabindex: selected ? "0" : "-1",
-      },
-    });
-    btn.addEventListener("click", () => selectReportsTab(character, charIdx, diff));
-    btn.addEventListener("keydown", (e) => onTabKeydown(e, available, i, character, charIdx));
-    tabButtons.push(btn);
-    tablist.appendChild(btn);
-  });
-  body.appendChild(tablist);
-
-  available.forEach((diff, i) => {
-    const panel = h("div", {
-      className: "tabpanel",
-      attrs: {
-        role: "tabpanel",
-        id: panelIds[i],
-        "aria-labelledby": tabIds[i],
-      },
-    });
-    panel.hidden = diff !== state.reportsTab;
-    panel.appendChild(reportPanelContent(byDiff.get(diff), `${charIdx}:${diff}`));
-    body.appendChild(panel);
-  });
-
-  els.reportsContainer.appendChild(wrap);
-  refreshWowheadLinks(); // a tab switch rebuilds the whole card, links included
-}
-
-function onTabKeydown(e, available, i, character, charIdx) {
-  let nextIndex = null;
-  if (e.key === "ArrowRight") nextIndex = (i + 1) % available.length;
-  else if (e.key === "ArrowLeft") nextIndex = (i - 1 + available.length) % available.length;
-  else if (e.key === "Home") nextIndex = 0;
-  else if (e.key === "End") nextIndex = available.length - 1;
-  if (nextIndex === null) return;
-  e.preventDefault();
-  selectReportsTab(character, charIdx, available[nextIndex]);
-  const tabs = Array.from(els.reportsContainer.querySelectorAll('[role="tab"]'));
-  tabs[nextIndex]?.focus();
-}
-
-function selectReportsTab(character, charIdx, diff) {
-  state.reportsTab = diff;
-  renderReportsCard(character, charIdx);
-  renderPaperdoll(character); // its per-slot upgrades follow the open tab
-  refreshWowheadLinks();
-}
-
-function reportPanelContent(report, key) {
-  const frag = h("div", { className: "report-panel" });
-
-  const headRow = h("div", { className: "report-card__head" });
-  const url = isReportUrl(report.report_url);
-  headRow.appendChild(linkOrText(url, t("openReport"), { className: "report-card__link" }));
-
-  if (report.error) {
-    headRow.appendChild(h("span", { className: "pill pill--fail", text: t("error") }));
-  }
-  frag.appendChild(headRow);
-
-  if (!report.error) frag.appendChild(changesBlock(report.difficulty));
-
-  if (report.error) {
-    frag.appendChild(h("p", { className: "report-card__error", text: String(report.error) }));
-  }
-
-  const upgrades = computeUpgrades(report.results);
-
-  const filterRow = h("div", { className: "filter-row" });
-  const ui = reportUiFor(key);
-  const filterButtons = new Map();
-  DROP_LOC_FILTERS.forEach((loc) => {
-    const btn = h("button", {
-      className: "pill pill--filter",
-      text: loc === "All" ? t("filter_All") : loc,
-      attrs: { type: "button", "aria-pressed": String(loc === ui.loc) },
-    });
-    btn.addEventListener("click", () => {
-      ui.loc = loc;
-      DROP_LOC_FILTERS.forEach((l) => {
-        filterButtons.get(l).setAttribute("aria-pressed", String(l === loc));
-        filterButtons.get(l).classList.toggle("is-active", l === loc);
-      });
-      renderRows();
-    });
-    if (loc === ui.loc) btn.classList.add("is-active");
-    filterButtons.set(loc, btn);
-    filterRow.appendChild(btn);
-  });
-  frag.appendChild(filterRow);
-
-  // Follows the tab and the filter: "all Raid upgrades together are worth ...".
-  const powerLine = h("p", { className: "power-line", attrs: { title: t("powerHint") } });
-  frag.appendChild(powerLine);
-
-  const rowsContainer = h("div", { className: "upgrade-rows" });
-  frag.appendChild(rowsContainer);
-
-  const toggleWrap = h("div", { className: "bars-toggle" });
-  frag.appendChild(toggleWrap);
-
-  const TOP_N = 10;
-
-  function renderRows() {
-    clear(rowsContainer);
-    clear(toggleWrap);
-    clear(powerLine);
-    const filtered = ui.loc === "All" ? upgrades : upgrades.filter((u) => u.dropLoc === ui.loc);
-
-    const power = computePowerToGain(filtered);
-    powerLine.hidden = !power;
-    if (power) {
-      powerLine.append(
-        h("span", { className: "power-line__label", text: t("powerToGain") }),
-        h("span", { className: "power-line__pct mono", text: fmtPct(power.pct) }),
-        h("span", {
-          className: "power-line__note",
-          text:
-            ui.loc === "All"
-              ? t("powerNote", { n: power.items })
-              : t("powerNoteLoc", { n: power.items, loc: ui.loc }),
-        })
-      );
-    }
-
-    if (filtered.length === 0) {
-      rowsContainer.appendChild(h("p", { className: "muted-note", text: t("noUpgradesFilter") }));
-      return;
-    }
-
-    const maxPct = filtered.reduce((m, u) => Math.max(m, u.percDiff), 0.0001);
-    const shown = ui.expanded ? filtered : filtered.slice(0, TOP_N);
-    shown.forEach((u) => rowsContainer.appendChild(upgradeRow(u, maxPct)));
-
-    if (filtered.length > TOP_N) {
-      const toggleBtn = h("button", {
-        className: "pill pill--action",
-        text: ui.expanded ? t("showTop", { n: TOP_N }) : t("showAll", { n: filtered.length }),
-        attrs: { type: "button" },
-      });
-      toggleBtn.addEventListener("click", () => {
-        ui.expanded = !ui.expanded;
-        renderRows();
-      });
-      toggleWrap.appendChild(toggleBtn);
-    }
-
-    // Filter/toggle rebuild these rows as fresh elements. cachedItemLabel()
-    // already avoids a flash for names Wowhead resolved before, but the
-    // freshly created <a> elements themselves still need this to pick up
-    // colour/icon and any name not yet cached.
-    refreshWowheadLinks();
-  }
-
-  renderRows();
-  return frag;
-}
-
-function upgradeRow(upgrade, maxPct) {
-  const url = wowheadItemUrl(upgrade.item, null, upgrade.level);
-  const link = linkOrText(url, cachedItemLabel(upgrade.item), { className: "upgrade-row__item" });
-  const ilvlPill = h("span", {
-    className: "pill pill--ilvl mono",
-    text: Number.isFinite(upgrade.level) ? String(upgrade.level) : "?",
-  });
-
-  const pct = Math.max(2, Math.min(100, (upgrade.percDiff / maxPct) * 100));
-  const track = h("div", { className: "bar-track" });
-  const fill = h("div", { className: "bar-fill" });
-  fill.style.width = `${pct}%`;
-  track.appendChild(fill);
-
-  const boss = dropSourceName(upgrade);
-  const where = sourceLabel(upgrade.dropLoc, upgrade.dropDifficulty);
-  const source = h("span", {
-    className: "upgrade-row__source",
-    attrs: { title: boss ? `${boss} · ${where}` : where },
-  }, [
-    boss ? h("span", { className: "upgrade-row__boss", text: boss }) : null,
-    h("span", { className: "upgrade-row__where", text: where }),
-  ]);
-
-  return h("div", { className: "upgrade-row" }, [
-    link,
-    ilvlPill,
-    source,
-    track,
-    h("span", { className: "upgrade-row__pct mono", text: fmtPct(upgrade.percDiff) }),
-  ]);
-}
-
-// ---------------------------------------------------------------------
-// Crest sidebar: compact rows, built from crest_report/crest_upgrades.
-// Both are optional and independent: crest_report is
-// {difficulty, report_id, report_url} | null, crest_upgrades is a
-// pre-sorted (desc, nulls last) array | null.
-// ---------------------------------------------------------------------
-function renderCrestSidebar(character) {
-  clear(els.crestContainer);
-
-  const report = character.crest_report;
-  if (report && typeof report === "object") {
-    const url = isReportUrl(report.report_url);
-    const link = linkOrText(url, t("crestReport"), { className: "report-card__link" });
-    if (typeof report.difficulty === "string" && report.difficulty) {
-      link.setAttribute("title", t("crestReportTitle", { diff: report.difficulty }));
-    }
-    els.crestContainer.appendChild(h("div", { className: "report-card__head" }, [link]));
-  }
-
-  const upgrades = character.crest_upgrades;
-  if (upgrades === null || upgrades === undefined) {
-    els.crestContainer.appendChild(h("p", { className: "muted-note", text: t("noCrestEstimate") }));
-    return;
-  }
-  if (!Array.isArray(upgrades) || upgrades.length === 0) {
-    els.crestContainer.appendChild(h("p", { className: "muted-note", text: t("fullyUpgraded") }));
-    return;
-  }
-  const useful = usefulCrestUpgrades(upgrades);
-  if (useful.length === 0) {
-    els.crestContainer.appendChild(h("p", { className: "muted-note", text: t("noCrestGain") }));
-    return;
-  }
-
-  const maxGain = useful.reduce((m, u) => {
-    const g = numOrNull(u.gain_pct);
-    return g !== null && g > m ? g : m;
-  }, 0.0001);
-
-  const list = h("div", { className: "crest-compact-list" });
-  useful.forEach((u) => list.appendChild(crestCompactRow(u, maxGain)));
-  els.crestContainer.appendChild(list);
-}
-
-function crestCompactRow(u, maxGain) {
-  const level = numOrNull(u.level);
-  const maxLevel = numOrNull(u.max_level);
-  const rank = numOrNull(u.rank);
-
-  const url = wowheadItemUrl(u.item_id, null, u.level);
-  const label = cachedItemLabel(u.item_id, u.name);
-  const link = linkOrText(url, label, { className: "crest-compact-row__item" });
-
-  const track = typeof u.track === "string" && u.track ? u.track : "?";
-  const metaText = `${slotLabel(String(u.slot || "").toLowerCase())} · ${track} ${rank === null ? "?" : rank}/6 → 6/6 · ${level === null ? "?" : level}→${maxLevel === null ? "?" : maxLevel}`;
-  const meta = h("span", { className: "crest-compact-row__meta", text: metaText });
-
-  const gain = numOrNull(u.gain_pct);
-  const barRow = h("div", { className: "crest-compact-row__bar-row" });
-  if (gain === null) {
-    barRow.appendChild(h("span", { className: "muted-note", text: t("noEstimate") }));
-  } else {
-    const pct = Math.max(2, Math.min(100, (gain / maxGain) * 100));
-    const track2 = h("div", { className: "bar-track" });
-    const fill = h("div", { className: "bar-fill bar-fill--gold" });
-    fill.style.width = `${pct}%`;
-    track2.appendChild(fill);
-    barRow.appendChild(track2);
-    barRow.appendChild(h("span", { className: "crest-row__pct mono", text: fmtPct(gain) }));
-  }
-
-  return h("div", { className: "crest-compact-row" }, [link, meta, barRow]);
-}
-
-// ---------------------------------------------------------------------
-// "Since the previous run": upgrades that appeared or dropped out of this
-// report, and gear that changed, against the closest older run with a
-// working report for the same difficulty. The older run is fetched once.
-// ---------------------------------------------------------------------
-
-/** The closest run older than `runId` in the index with an error-free `difficulty` report. */
-function previousRunWith(runId, difficulty) {
-  const runs = state.index && Array.isArray(state.index.runs) ? state.index.runs : [];
-  const at = runs.findIndex((r) => r.id === runId);
-  if (at < 0) return null;
-  for (const run of runs.slice(at + 1)) {
-    const chars = Array.isArray(run.characters) ? run.characters : [];
-    const reports = chars[0] && Array.isArray(chars[0].reports) ? chars[0].reports : [];
-    if (reports.some((r) => r.difficulty === difficulty && !r.error)) return run;
+/** {start, end, live, dayOffset} of the raid night that's on now or comes next, or null. */
+function nextRaidNight(cfg, now) {
+  if (!cfg) return null;
+  const p = tzParts(now, cfg.tz);
+  for (let i = -1; i < 8; i++) {
+    const day = new Date(Date.UTC(p.year, p.month - 1, p.day + i));
+    if (!cfg.days.has(day.getUTCDay())) continue;
+    const [y, m, d] = [day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate()];
+    const start = zonedToUtc(y, m, d, cfg.start[0], cfg.start[1], cfg.tz);
+    let end = zonedToUtc(y, m, d, cfg.end[0], cfg.end[1], cfg.tz);
+    if (end <= start) end = new Date(end.getTime() + DAY_MS); // runs past midnight
+    if (now < end) return { start, end, live: now >= start, dayOffset: i };
   }
   return null;
 }
-
-/** The run's full summary, or null if it can't be loaded. Cached as a promise, so both
- * report tabs asking at once share one request. */
-function loadPreviousRun(id) {
-  if (!state.previousRuns.has(id)) {
-    const url = runDataUrl(id);
-    state.previousRuns.set(id, url ? fetchJson(url).catch(() => null) : Promise.resolve(null));
-  }
-  return state.previousRuns.get(id);
+function untilText(ms) {
+  const min = Math.max(0, Math.ceil(ms / 60000));
+  const d = Math.floor(min / 1440);
+  const hh = Math.floor((min % 1440) / 60);
+  const mm = min % 60;
+  const hu = t("hourUnit");
+  if (d > 0) return `${d} d ${hh} ${hu}`;
+  return hh > 0 ? `${hh} ${hu} ${String(mm).padStart(2, "0")} min` : `${mm} min`;
 }
 
-/** Diff two runs' first character: upgrades by item id (positive gains only) and gear by slot. */
-function diffRuns(current, previous, difficulty) {
-  const upgradesOf = (character) => {
-    const reports = character && Array.isArray(character.reports) ? character.reports : [];
-    const report = reports.find((r) => r.difficulty === difficulty);
-    return new Map(computeUpgrades(report ? report.results : []).map((u) => [u.item, u]));
+// ---------------------------------------------------------------------------------------------
+// Bosses. summary.raids lists each raid with its bosses in kill order (QE's names and encounter
+// ids); bossart.js adds the full name and the head. An upgrade's dropSource is the QE name of
+// its boss ("Boss A / Boss B" when it drops from several).
+// ---------------------------------------------------------------------------------------------
+function cleanRaids(raw) {
+  if (!Array.isArray(raw)) return [];
+  const art = (typeof window !== "undefined" && window.BossArt) || {};
+  return raw
+    .filter((r) => r && typeof r.name === "string" && Array.isArray(r.bosses))
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      bosses: r.bosses
+        .filter((b) => b && typeof b.name === "string" && b.name)
+        .map((b) => {
+          const extra = Number.isInteger(b.id) && Object.hasOwn(art, b.id) ? art[b.id] : null;
+          return {
+            id: b.id,
+            qeName: b.name,
+            name: extra && typeof extra.name === "string" ? extra.name : b.name,
+            head: extra ? extra.head : null,
+          };
+        }),
+    }))
+    .filter((r) => r.bosses.length);
+}
+function normBoss(s) {
+  return String(s || "").toLowerCase().replace(/^the\s+/, "").trim();
+}
+/** The bosses (from `raids`) a dropSource names, matched on QE's or the full name. */
+function bossesFor(dropSource, raids) {
+  if (!dropSource) return [];
+  const wanted = dropSource.split(" / ").map(normBoss).filter(Boolean);
+  const hits = [];
+  for (const raid of raids) {
+    for (const boss of raid.bosses) {
+      if (wanted.includes(normBoss(boss.qeName)) || wanted.includes(normBoss(boss.name))) hits.push(boss);
+    }
+  }
+  return hits;
+}
+/**
+ * The raid-night plan: each raid with each boss in kill order and its upgrades (best first),
+ * plus "other" for raid upgrades no boss claims (old data, a name QE changed).
+ */
+function planRaids(upgrades, raids) {
+  const raidUps = upgrades.filter((u) => u.dropLoc === "Raid");
+  const claimed = new Set();
+  const plan = raids.map((raid) => ({
+    raid,
+    bosses: raid.bosses.map((boss) => {
+      const items = raidUps.filter((u) => bossesFor(dropSourceName(u), [raid]).includes(boss));
+      items.forEach((u) => claimed.add(u));
+      return { boss, items };
+    }),
+  }));
+  const other = new Map();
+  raidUps.filter((u) => !claimed.has(u)).forEach((u) => {
+    const name = dropSourceName(u) || t("unknownSource");
+    if (!other.has(name)) other.set(name, []);
+    other.get(name).push(u);
+  });
+  return {
+    plan,
+    other: [...other.entries()].map(([name, items]) => ({ boss: { id: null, qeName: name, name, head: null }, items })),
   };
-  const now = upgradesOf(current);
-  const before = upgradesOf(previous);
-  const added = [...now.values()].filter((u) => !before.has(u.item));
-  const removed = [...before.values()].filter((u) => !now.has(u.item));
-
-  const gearOf = (character) =>
-    new Map((character && Array.isArray(character.gear) ? character.gear : []).map((g) => [g.slot, g]));
-  const gearNow = gearOf(current);
-  const gearBefore = gearOf(previous);
-  const gear = [];
-  for (const slot of ILVL_SLOTS) {
-    const a = gearBefore.get(slot);
-    const b = gearNow.get(slot);
-    if (!a || !b) continue;
-    if (a.item_id !== b.item_id || a.ilvl !== b.ilvl) gear.push({ slot, before: a, after: b });
+}
+function bossHead(boss, cls) {
+  const src = boss ? bossHeadUrl(boss.head) : null;
+  const initial = String((boss && boss.name) || "?").replace(/^the\s+/i, "").trim()[0] || "?";
+  return h("span", { className: `boss-thumb ${cls || ""}`, attrs: { "aria-hidden": "true" } },
+    [src ? h("img", { attrs: { src, alt: "", width: "52", height: "52", loading: "lazy" } }) : h("span", { className: "boss-thumb__mono", text: initial })]);
+}
+/** A source tile for a table row: the boss head for a raid boss, else a mono tile. */
+function sourceTile(u, raids, cls) {
+  const name = dropSourceName(u);
+  if (u.dropLoc === "Raid" && name) {
+    const [boss] = bossesFor(name, raids);
+    if (boss) return bossHead(boss, cls);
   }
-  return { added, removed, gear };
+  let mono = "?";
+  if (u.dropLoc === "Dungeon" && name) mono = name.replace(/^the\s+/i, "").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  else if (u.dropLoc === "Delves") mono = "D";
+  else if (u.dropLoc === "Crafted") mono = "C";
+  return h("span", { className: `boss-thumb boss-thumb--src ${cls || ""}`, attrs: { "aria-hidden": "true" } }, [h("span", { className: "boss-thumb__mono", text: mono })]);
+}
+function sourceName(u, raids) {
+  const n = dropSourceName(u);
+  if (n) {
+    const hits = u.dropLoc === "Raid" ? bossesFor(n, raids) : [];
+    return hits.length ? hits.map((b) => b.name).join(" / ") : n;
+  }
+  return u.dropLoc === "Crafted" || u.dropLoc === "Delves" ? u.dropLoc : t("unknownSource");
 }
 
-function changesBlock(difficulty) {
-  const box = h("div", { className: "changes" });
-  const data = state.runData;
-  const runId = data && data.run ? data.run.id : null;
-  const prev = runId ? previousRunWith(runId, difficulty) : null;
-  if (!prev) {
-    box.appendChild(h("span", { className: "changes__title", text: t("sincePrevious") }));
-    box.appendChild(h("p", { className: "changes__none", text: t("noPrevious") }));
+// ---------------------------------------------------------------------------------------------
+// Item names and icons. Runs since summary v2 carry them (QE's item database); for older runs
+// a name seen in any loaded run is reused, then Wowhead's tooltip script fills in the rest
+// (renameLinks per link, only where the name is missing).
+// ---------------------------------------------------------------------------------------------
+const itemMeta = new Map(); // item id -> {name, icon}
+function learnItems(data) {
+  if (!data || !Array.isArray(data.characters)) return;
+  const note = (id, name, ico) => {
+    const key = Number(id);
+    if (!Number.isInteger(key)) return;
+    const cur = itemMeta.get(key) || {};
+    itemMeta.set(key, {
+      name: cur.name || (typeof name === "string" && name ? name : null),
+      icon: cur.icon || (wowIconUrl(ico) ? ico : null),
+    });
+  };
+  data.characters.forEach((c) => {
+    (Array.isArray(c.gear) ? c.gear : []).forEach((g) => note(g.item_id, g.name, g.icon));
+    (Array.isArray(c.crest_upgrades) ? c.crest_upgrades : []).forEach((u) => note(u.item_id, u.name, u.icon));
+    (Array.isArray(c.reports) ? c.reports : []).forEach((r) =>
+      (Array.isArray(r.results) ? r.results : []).forEach((x) => note(x.item, x.name, x.icon)));
+  });
+}
+const wowheadNames = new Map(); // names Wowhead filled in, so a re-render doesn't flash "Item 123"
+function itemName(id, provided) {
+  if (typeof provided === "string" && provided) return provided;
+  const key = Number(id);
+  const meta = itemMeta.get(key);
+  if (meta && meta.name) return meta.name;
+  if (wowheadNames.has(key)) return wowheadNames.get(key);
+  return Number.isInteger(key) ? `Item ${key}` : t("unknownItem");
+}
+function itemIcon(id, provided, cls) {
+  const meta = itemMeta.get(Number(id));
+  const src = wowIconUrl(provided) || (meta ? wowIconUrl(meta.icon) : null);
+  return h("span", { className: `ico-tile ${cls || ""}`, attrs: { "aria-hidden": "true" } },
+    [src ? h("img", { attrs: { src, alt: "", width: "36", height: "36", loading: "lazy" } }) : null]);
+}
+function itemLink(id, level, opts) {
+  opts = opts || {};
+  const label = itemName(id, opts.name);
+  const known = !/^Item \d+$/.test(label);
+  return linkOrText(wowheadItemUrl(id, opts.bonus, level), label, {
+    className: opts.className || "item",
+    // Wowhead renames only the links whose name the data doesn't have.
+    attrs: { "data-wh-rename-link": known ? "false" : "true" },
+  });
+}
+
+/** A slanted bar (raid-frame style). share 0..1. */
+function meter(share, mod) {
+  return h("span", { className: `meter${mod ? " meter--" + mod : ""}`, attrs: { "aria-hidden": "true" } },
+    [h("i", { vars: { "--w": `${Math.max(2, Math.min(100, share * 100)).toFixed(1)}%` } })]);
+}
+
+// The Raider.io staleness warning, recognised so it reads in the page language.
+const STALE_RE = /^Raider\.io last read this character (\d+(?:\.\d+)?) days ago/;
+function staleDays(warning) {
+  const m = STALE_RE.exec(String(warning));
+  return m ? Number(m[1]) : null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// State + loading
+// ---------------------------------------------------------------------------------------------
+const S = {
+  index: null,
+  latest: null,
+  data: null, // the displayed run
+  tab: "Mythic",
+  loc: "All",
+  sort: { key: "gain", dir: "desc" },
+  folds: new Set(),
+  openBosses: new Set(),
+  historyExpanded: false,
+  openGroups: new Set(),
+  prev: new Map(),
+  error: null,
+  focusTab: null,
+  tabChosen: false, // set by a click or ?tab=; until then a failed report gives way to one that worked
+};
+
+async function fetchJson(url) {
+  let res;
+  try {
+    res = await fetch(url, { cache: "no-store" });
+  } catch (e) {
+    throw new Error(`network error loading ${url}`);
+  }
+  if (!res.ok) throw new Error(`${url} responded ${res.status}`);
+  try {
+    return await res.json();
+  } catch (e) {
+    throw new Error(`${url} was not valid JSON`);
+  }
+}
+
+function indexRuns() {
+  return S.index && Array.isArray(S.index.runs) ? S.index.runs : [];
+}
+function char() {
+  return S.data && Array.isArray(S.data.characters) ? S.data.characters[0] || null : null;
+}
+function reportFor(diff, c) {
+  c = c || char();
+  return c && Array.isArray(c.reports) ? c.reports.find((r) => r.difficulty === diff) || null : null;
+}
+function availableTabs() {
+  return REPORT_DIFFICULTIES.filter((d) => reportFor(d));
+}
+/** Keep S.tab on a report this run has; unless the viewer picked it, prefer one that worked. */
+function settleTab() {
+  const avail = availableTabs();
+  if (!avail.length) return;
+  const ok = avail.filter((d) => !reportFor(d).error);
+  if (!avail.includes(S.tab)) S.tab = (ok.length ? ok : avail)[(ok.length ? ok : avail).length - 1];
+  else if (!S.tabChosen && reportFor(S.tab).error && ok.length) S.tab = ok[ok.length - 1];
+}
+function upgradesFor(diff) {
+  const r = reportFor(diff);
+  return r && !r.error ? computeUpgrades(r.results) : [];
+}
+function filterLoc(list, loc) {
+  return loc === "All" ? list : list.filter((u) => u.dropLoc === loc);
+}
+function isLatest() {
+  return Boolean(S.data && S.latest && S.data.run && S.latest.run && S.data.run.id === S.latest.run.id);
+}
+/** Game data: this run's raids, else the latest run's (older runs predate summary v2). */
+function currentRaids() {
+  const own = cleanRaids(S.data && S.data.raids);
+  return own.length ? own : cleanRaids(S.latest && S.latest.raids);
+}
+/** The raid-night schedule is today's config, so the latest run's wins. */
+function currentRaidNight() {
+  return parseRaidNight((S.latest && S.latest.raid_night) || (S.data && S.data.raid_night));
+}
+
+function rerender() {
+  const app = document.getElementById("app");
+  if (!app) return;
+  const scrollY = window.scrollY;
+  render(app);
+  document.documentElement.lang = lang();
+  document.title = `${t("title")} · bmiest`;
+  if (S.focusTab) {
+    const el = document.getElementById(`tab-${S.focusTab}`);
+    if (el) el.focus();
+    S.focusTab = null;
+  }
+  window.scrollTo(0, scrollY);
+  if (window.$WowheadPower && typeof window.$WowheadPower.refreshLinks === "function") window.$WowheadPower.refreshLinks();
+}
+
+async function navigateToRun(id) {
+  if (!S.latest || !S.latest.run || id === S.latest.run.id) {
+    S.data = S.latest;
+    S.error = null;
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+    rerender();
+    return;
+  }
+  const url = runDataUrl(id);
+  if (!url) {
+    S.error = t("invalidRunId", { id });
+    rerender();
+    return;
+  }
+  try {
+    const data = await fetchJson(url);
+    if (!data || !data.run) throw new Error(t("indexFormat"));
+    S.data = data;
+    learnItems(data);
+    S.error = null;
+    if (location.hash !== `#run=${id}`) history.replaceState(null, "", `#run=${id}`);
+  } catch (e) {
+    S.error = t("couldNotLoadRun", { id, msg: e.message });
+  }
+  rerender();
+}
+function applyHash() {
+  const m = /^#run=([A-Za-z0-9_-]+)$/.exec(location.hash);
+  if (m) return navigateToRun(m[1]);
+  if (S.latest && S.data !== S.latest) return navigateToRun(S.latest.run.id);
+  return Promise.resolve();
+}
+
+function setupWowheadTooltips() {
+  // Hover tooltips. The page styles the links itself; only links without a known name get
+  // renamed (data-wh-rename-link="true"; renameLinks must be on for Wowhead to fetch them),
+  // and those names are remembered for the next re-render.
+  window.whTooltips = { colorLinks: false, iconizeLinks: false, renameLinks: true };
+  const s = document.createElement("script");
+  s.src = "https://wow.zamimg.com/js/tooltips.js";
+  s.async = true;
+  document.head.appendChild(s);
+  if (typeof MutationObserver === "undefined") return;
+  const remember = (a) => {
+    const m = /item=(\d+)/.exec(a.getAttribute("href") || "");
+    const text = (a.textContent || "").trim();
+    if (m && text && !/^Item \d+$/.test(text)) wowheadNames.set(Number(m[1]), text);
+  };
+  new MutationObserver((records) => {
+    records.forEach((rec) => {
+      const node = rec.target.nodeType === Node.TEXT_NODE ? rec.target.parentElement : rec.target;
+      const a = node && node.closest ? node.closest('a[data-wh-rename-link="true"]') : null;
+      if (a) remember(a);
+    });
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
+}
+
+// The countdown ticks without a full re-render; when a raid night starts or ends, it re-renders.
+let countdownTimer = null;
+function startCountdown() {
+  if (countdownTimer) return;
+  countdownTimer = setInterval(() => {
+    const el = document.querySelector("[data-until]");
+    if (!el) return;
+    const at = parseDate(el.getAttribute("data-until"));
+    const left = at ? at.getTime() - Date.now() : 0;
+    if (left <= 0) rerender();
+    else el.textContent = t("inTime", { t: untilText(left) });
+  }, 20000);
+}
+
+async function boot() {
+  setupWowheadTooltips();
+  const params = new URLSearchParams(location.search);
+  if (REPORT_DIFFICULTIES.includes(params.get("tab"))) {
+    S.tab = params.get("tab");
+    S.tabChosen = true;
+  }
+  if (DROP_LOC_FILTERS.includes(params.get("loc"))) S.loc = params.get("loc");
+  try {
+    const [index, latest] = await Promise.all([fetchJson("data/index.json"), fetchJson("data/latest.json")]);
+    if (!index || !Array.isArray(index.runs) || !latest || !latest.run) throw new Error(t("indexFormat"));
+    S.index = index;
+    S.latest = latest;
+    S.data = latest;
+    learnItems(latest);
+  } catch (e) {
+    S.error = t("couldNotLoadLatest", { msg: e.message });
+  }
+  window.addEventListener("hashchange", applyHash);
+  if (S.latest && /^#run=/.test(location.hash)) await applyHash();
+  else rerender();
+  startCountdown();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Top of the page
+// ---------------------------------------------------------------------------------------------
+/** Broadcast top bar: flush blocks bmiest | run status | updated, then GitHub and EN | NL. */
+function topBar() {
+  const latest = indexRuns()[0];
+  const when = latest ? latest.finished_at || latest.started_at : null;
+  const bug = h("div", { className: "bug" }, [
+    h("span", { className: "bug__brand" }, [icon("mark"), h("span", { text: "bmiest" })]),
+    latest
+      ? h("span", { className: `bug__status ${latest.ok ? "is-ok" : "is-fail"}` }, [
+          latest.ok ? icon("check") : icon("x"),
+          h("span", { text: latest.ok ? t("runOk") : t("runFailed") }),
+        ])
+      : h("span", { className: "bug__status", text: t("noRuns") }),
+    // "Updated" is its own span so a phone can drop it and keep just the time.
+    when ? h("span", { className: "bug__upd", attrs: { title: absoluteTime(when) } }, [h("span", { className: "bug__upd-pre", text: `${t("updated")} ` }), h("span", { text: relativeTime(when) })]) : null,
+  ]);
+  const gh = latest ? isGithubUrl(latest.url) : null;
+  const langSwitch = h("div", { className: "lang-switch", attrs: { role: "group", "aria-label": t("langLabel") } },
+    ["en", "nl"].map((l) => h("button", {
+      text: l.toUpperCase(),
+      attrs: { type: "button", lang: l, "aria-pressed": String(lang() === l) },
+      on: {
+        click: () => {
+          if (l === lang()) return;
+          setLang(l);
+          rerender();
+        },
+      },
+    })));
+  return h("header", { className: "bar" }, [
+    h("div", { className: "bar__in" }, [
+      bug,
+      h("div", { className: "bar__end" }, [gh ? extLink(gh, t("runOnGithub"), "bar__gh") : null, langSwitch]),
+    ]),
+  ]);
+}
+
+/** Title row: the page name, the character line and the profile link. */
+function pageHead() {
+  const c = char();
+  const kids = [h("h1", { className: "ph__title", text: t("title") })];
+  if (c) {
+    const spec = c.spec && c.class ? `${c.spec} ${c.class}` : null;
+    const rr = [capitalize(String(c.realm || "")), String(c.region || "").toUpperCase()].filter(Boolean).join(" ");
+    const prof = raiderioProfileUrl(c);
+    kids.push(h("div", { className: "ph__who" }, [
+      h("span", { className: "ph__name", text: c.name || t("unknownCharacter") }),
+      h("span", { className: "ph__meta", text: [spec, rr].filter(Boolean).join(" · ") }),
+      prof ? extLink(prof, "Raider.IO", "ph__link") : null,
+    ]));
+  }
+  return h("div", { className: "ph" }, [h("div", { className: "ph__row" }, kids), h("p", { className: "ph__lead", text: t("lead") })]);
+}
+
+/** Load errors, the viewing banner, run errors, skips and the pipeline's warnings. */
+function alerts() {
+  const out = h("div", { className: "alerts" });
+  if (S.error) out.appendChild(h("div", { className: "alert alert--error", attrs: { role: "alert" } }, [icon("warn"), h("span", { text: S.error })]));
+  if (S.data && S.latest && !isLatest()) {
+    out.appendChild(h("div", { className: "alert alert--view" }, [
+      h("span", { text: t("viewing", { when: shortDate(S.data.run.started_at) }) }),
+      h("button", { className: "pill pill--action", text: t("back"), attrs: { type: "button" }, on: { click: () => navigateToRun(S.latest.run.id) } }),
+    ]));
+  }
+  const c = char();
+  if (c) {
+    if (c.error) {
+      out.appendChild(h("div", { className: "alert alert--error", attrs: { role: "alert" } }, [
+        icon("warn"),
+        h("span", { className: "alert__text" }, [h("b", { text: t("runError") }), h("span", { text: String(c.error) })]),
+      ]));
+    }
+    if (c.skipped) out.appendChild(h("div", { className: "alert" }, [h("span", { text: typeof c.skipped === "string" ? t("skippedWhy", { why: c.skipped }) : t("skipped") })]));
+    const prof = raiderioProfileUrl(c);
+    (Array.isArray(c.warnings) ? c.warnings : []).forEach((w) => {
+      const days = staleDays(w);
+      const text = days !== null
+        ? t("staleText", { days: new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(days) })
+        : String(w);
+      out.appendChild(h("div", { className: "alert alert--warn", attrs: { role: "status" } }, [
+        icon("warn"),
+        h("span", { className: "alert__text" }, [h("b", { text: days !== null ? t("staleTitle") : t("warning") }), h("span", { text })]),
+        days !== null && prof ? extLink(prof, t("updateRio"), "alert__act") : null,
+      ]));
+    });
+  }
+  return out.childNodes.length ? out : null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Controls
+// ---------------------------------------------------------------------------------------------
+/** Heroic | Mythic as flush tab blocks (ARIA tabs, arrow keys). */
+function diffTabs(panelId) {
+  const avail = availableTabs();
+  const list = h("div", { className: "tabs", attrs: { role: "tablist", "aria-label": t("difficulty") } });
+  avail.forEach((d, i) => {
+    const sel = d === S.tab;
+    list.appendChild(h("button", {
+      className: "tabs__tab",
+      text: d,
+      attrs: { type: "button", role: "tab", id: `tab-${d}`, "aria-selected": String(sel), "aria-controls": panelId, tabindex: sel ? "0" : "-1" },
+      on: {
+        click: () => {
+          S.tab = d;
+          S.tabChosen = true;
+          rerender();
+        },
+        keydown: (e) => {
+          let n = null;
+          if (e.key === "ArrowRight") n = (i + 1) % avail.length;
+          else if (e.key === "ArrowLeft") n = (i - 1 + avail.length) % avail.length;
+          else if (e.key === "Home") n = 0;
+          else if (e.key === "End") n = avail.length - 1;
+          if (n === null) return;
+          e.preventDefault();
+          S.tab = avail[n];
+          S.tabChosen = true;
+          S.focusTab = avail[n];
+          rerender();
+        },
+      },
+    }));
+  });
+  return list;
+}
+
+/** Source filters as slanted toggle pills with a count. */
+function sourceFilters(ups) {
+  const group = h("div", { className: "filters", attrs: { role: "group", "aria-label": t("source") } });
+  DROP_LOC_FILTERS.forEach((loc) => {
+    const on = loc === S.loc;
+    group.appendChild(h("button", {
+      className: `pill pill--filter${on ? " is-on" : ""}`,
+      attrs: { type: "button", "aria-pressed": String(on) },
+      on: {
+        click: () => {
+          S.loc = loc;
+          rerender();
+        },
+      },
+    }, [h("span", { text: loc === "All" ? t("filter_All") : loc }), h("span", { className: "pill__n mono", text: String(filterLoc(ups, loc).length) })]));
+  });
+  return group;
+}
+
+function reportLink(diff, cls) {
+  const r = reportFor(diff);
+  const url = r && !r.error ? isReportUrl(r.report_url) : null;
+  return url ? extLink(url, t("openReport", { diff }), cls || "report-link") : null;
+}
+
+function sectionHead(title, caption, id) {
+  return h("div", { className: "sh sh--sub" }, [
+    h("h2", { className: "sh__title", text: title, attrs: { id } }),
+    caption ? h("p", { className: "sh__cap", text: caption }) : null,
+  ]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Main column: the raid night, then M+ and crests
+// ---------------------------------------------------------------------------------------------
+function raidNightWhen(night) {
+  const cfg = currentRaidNight();
+  if (!night) return h("div", { className: "rn__when" }, [h("h2", { className: "rn__date", text: t("raidBosses"), attrs: { id: "rnH" } })]);
+  const fmt = (o) => night.start.toLocaleString(locale(), { timeZone: cfg.tz, ...o });
+  const tonight = night.live || night.dayOffset <= 0;
+  const dayWord = tonight ? t("tonight") : capitalize(fmt({ weekday: "long" }));
+  const range = `${fmt({ hour: "2-digit", minute: "2-digit" })}–${night.end.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", timeZone: cfg.tz })}`;
+  return h("div", { className: "rn__when" }, [
+    h("h2", { className: "rn__date", attrs: { id: "rnH" } }, [
+      // The heading says when; screen readers also hear what it is.
+      h("span", { className: "visually-hidden", text: `${night.live ? t("raidNow") : t("nextRaid")}: ` }),
+      h("span", { text: `${dayWord} ` }),
+      h("span", { className: "rn__time", text: fmt({ hour: "2-digit", minute: "2-digit" }) }),
+    ]),
+    h("p", { className: "rn__in" }, [
+      // The heading already names the weekday on other days; "Tonight" doesn't.
+      h("span", { text: `${capitalize(fmt(tonight ? { weekday: "long", day: "numeric", month: "long" } : { day: "numeric", month: "long" }))} · ` }),
+      night.live
+        ? h("b", { className: "mono", text: range, attrs: { "data-until": night.end.toISOString() } })
+        : h("b", { className: "mono", text: t("inTime", { t: untilText(night.start - Date.now()) }), attrs: { "data-until": night.start.toISOString() } }),
+    ]),
+  ]);
+}
+
+const TILE_SHOW = 3;
+function bossTile({ boss, items }, n, best, key) {
+  const isBest = Boolean(best && items.some((u) => u.item === best.item));
+  const open = S.openBosses.has(key);
+  const shown = open ? items : items.slice(0, TILE_SHOW);
+  const list = h("ul", { className: "rnb__list" }, items.length
+    ? shown.map((u) => {
+        const top = best && u.item === best.item;
+        return h("li", { className: `rnb__it${top ? " is-best" : ""}` }, [
+          itemIcon(u.item, u.icon),
+          itemLink(u.item, u.level, { name: u.name }),
+          h("span", { className: "pct mono", text: fmtPct(u.percDiff) }),
+          top ? h("span", { className: "visually-hidden", text: ` (${t("bestUpgrade")})` }) : null,
+        ]);
+      })
+    : [h("li", { className: "rnb__none", text: t("none") })]);
+  if (items.length > TILE_SHOW) {
+    list.appendChild(h("li", {}, [h("button", {
+      className: "rnb__more",
+      text: open ? t("showFewer") : t("more", { n: items.length - TILE_SHOW }),
+      attrs: { type: "button", "aria-expanded": String(open) },
+      on: {
+        click: () => {
+          if (open) S.openBosses.delete(key);
+          else S.openBosses.add(key);
+          rerender();
+        },
+      },
+    })]));
+  }
+  return h("li", { className: `rnb${isBest ? " is-best" : ""}${items.length ? "" : " rnb--none"}` }, [
+    h("div", { className: "rnb__top" }, [
+      bossHead(boss),
+      h("div", { className: "rnb__id" }, [
+        n ? h("span", { className: "rnb__n mono", text: String(n).padStart(2, "0") }) : null,
+        h("h4", { className: "rnb__name", text: boss.name }),
+      ]),
+    ]),
+    list,
+  ]);
+}
+
+function raidNightSection(all) {
+  const night = nextRaidNight(currentRaidNight(), new Date());
+  const best = all[0];
+  const { plan, other } = planRaids(all, currentRaids());
+  const sec = h("section", { className: "rn", attrs: { "aria-labelledby": "rnH", id: "panel-plan", role: "tabpanel" } });
+  sec.appendChild(h("div", { className: "rn__head" }, [raidNightWhen(night), h("div", { className: "controls" }, [diffTabs("panel-plan"), reportLink(S.tab)])]));
+  if (!reportFor(S.tab)) {
+    sec.appendChild(h("p", { className: "empty", text: t("noReports") }));
+    return sec;
+  }
+  if (reportFor(S.tab).error) {
+    sec.appendChild(h("p", { className: "empty", text: t("reportFailed", { diff: S.tab }) }));
+    return sec;
+  }
+  sec.appendChild(h("p", { className: "sh__cap", text: night && night.dayOffset <= 0 ? t("raidPlanCapTonight") : t("raidPlanCap") }));
+  const block = (title, groups, numbered, keyBase) => {
+    const count = groups.reduce((n, g) => n + g.items.length, 0);
+    return h("div", { className: "rn__raid" }, [
+      h("h3", { className: "rn__raidh" }, [h("b", { text: title }), h("span", { text: `${S.tab} · ${t("items", { n: count })}` })]),
+      h("ol", { className: "rn__bosses" }, groups.map((g, i) => bossTile(g, numbered ? i + 1 : 0, best, `${keyBase}:${g.boss.id ?? g.boss.name}`))),
+    ]);
+  };
+  plan.forEach(({ raid, bosses }) => sec.appendChild(block(raid.name, bosses, true, raid.id)));
+  if (other.length) sec.appendChild(block(plan.length ? t("otherRaidDrops") : "Raid", other, false, "other"));
+  if (!plan.length && !other.length) sec.appendChild(h("p", { className: "empty", text: t("noRaidUpgrades", { diff: S.tab }) }));
+  return sec;
+}
+
+function dungeonWeek(all) {
+  const best = all[0];
+  const map = new Map();
+  all.filter((u) => u.dropLoc === "Dungeon").forEach((u) => {
+    const k = dropSourceName(u) || t("unknownSource");
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(u);
+  });
+  const rows = [...map.entries()].sort((a, b) => b[1][0].percDiff - a[1][0].percDiff).slice(0, 6);
+  const max = rows.length ? rows[0][1][0].percDiff : 1;
+  const sec = h("section", { attrs: { "aria-labelledby": "dgH" } }, [sectionHead(t("weekM"), t("weekMCap"), "dgH")]);
+  if (!rows.length) {
+    sec.appendChild(h("p", { className: "muted", text: t("noDungeonUpgrades", { diff: S.tab }) }));
+    return sec;
+  }
+  sec.appendChild(h("ol", { className: "dg" }, rows.map(([name, items], i) => {
+    const top = items[0];
+    const isBest = Boolean(best && top.item === best.item);
+    return h("li", { className: `dg__row${isBest ? " is-best" : ""}` }, [
+      h("div", { className: "rib" }, [h("div", { className: "rib__bar" }, [h("div", { className: "rib__in" }, [
+        h("span", { className: "rib__acc", text: String(i + 1) }),
+        h("span", { className: "dg__name" }, [
+          h("b", { text: name }),
+          h("span", {}, [h("span", { text: `${t("items", { n: items.length })} · ` }), itemLink(top.item, top.level, { name: top.name })]),
+        ]),
+      ])])]),
+      h("span", { className: "dg__gain" }, [meter(top.percDiff / max, isBest ? "gold" : "jade"), h("span", { className: "pct mono", text: fmtPct(top.percDiff) })]),
+    ]);
+  })));
+  return sec;
+}
+
+/** Crest rows: item, track rank -> max, item levels, slanted bar. */
+function crestSection() {
+  const c = char();
+  const sec = h("section", { attrs: { "aria-labelledby": "crestH" } }, [sectionHead(t("crestNow"), t("crestCap"), "crestH")]);
+  const box = h("div", { className: "crests" });
+  sec.appendChild(box);
+  const rep = c.crest_report;
+  if (rep && typeof rep === "object") box.appendChild(extLink(isReportUrl(rep.report_url), t("crestReport"), "report-link"));
+  const list = c.crest_upgrades;
+  const note = (key) => box.appendChild(h("p", { className: "muted", text: t(key) }));
+  if (list === null || list === undefined) {
+    note("noCrestEstimate");
+    return sec;
+  }
+  if (!Array.isArray(list) || !list.length) {
+    note("fullyUpgraded");
+    return sec;
+  }
+  const useful = usefulCrestUpgrades(list);
+  if (!useful.length) {
+    note("noCrestGain");
+    return sec;
+  }
+  const max = useful.reduce((m, u) => Math.max(m, numOrNull(u.gain_pct) || 0), 0.0001);
+  useful.forEach((u) => {
+    const gain = numOrNull(u.gain_pct);
+    const rank = numOrNull(u.rank);
+    const lvl = numOrNull(u.level);
+    const maxl = numOrNull(u.max_level);
+    box.appendChild(h("div", { className: "crest" }, [
+      itemIcon(u.item_id, u.icon),
+      h("div", { className: "crest__body" }, [
+        itemLink(u.item_id, u.level, { name: u.name, className: "item crest__item" }),
+        h("span", { className: "crest__meta" }, [
+          h("span", { text: `${qeSlotLabel(u.slot)} · ${typeof u.track === "string" ? u.track : "?"} ` }),
+          h("span", { className: "mono", text: `${rank ?? "?"}/6 → 6/6 · ${lvl ?? "?"}→${maxl ?? "?"}` }),
+        ]),
+        gain === null
+          ? h("span", { className: "muted", text: t("noEstimate") })
+          : h("span", { className: "crest__bar" }, [meter(gain / max, "jade"), h("span", { className: "pct mono", text: fmtPct(gain) })]),
+      ]),
+    ]));
+  });
+  const left = list.length - useful.length;
+  if (left > 0) box.appendChild(h("p", { className: "muted", text: t("crestLeftOut", { n: left }) }));
+  return sec;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Folds: the full report and the gear
+// ---------------------------------------------------------------------------------------------
+const COLS = [
+  { key: "rank", label: () => "#", num: true },
+  { key: "item", label: () => t("item") },
+  { key: "source", label: () => t("source") },
+  { key: "slot", label: () => t("slot") },
+  { key: "ilvl", label: () => t("ilvl"), num: true },
+  { key: "gain", label: () => t("gain"), num: true },
+];
+function sortValue(u, key, all, raids) {
+  if (key === "gain") return u.percDiff;
+  if (key === "rank") return -all.indexOf(u);
+  if (key === "item") return itemName(u.item, u.name);
+  if (key === "source") return sourceName(u, raids);
+  if (key === "slot") return qeSlotLabel(u.slot);
+  if (key === "ilvl") return Number(u.level) || 0;
+  return 0;
+}
+function reportTable(all) {
+  const raids = currentRaids();
+  const ups = filterLoc(all, S.loc).slice();
+  if (!ups.length) {
+    return h("div", { className: "empty" }, [
+      h("p", { text: t("emptyFilter", { loc: S.loc, diff: S.tab }) }),
+      S.loc !== "All"
+        ? h("button", { className: "pill pill--action", text: t("emptyFilterAct"), attrs: { type: "button" }, on: { click: () => { S.loc = "All"; rerender(); } } })
+        : null,
+    ]);
+  }
+  const { key, dir } = S.sort;
+  ups.sort((a, b) => {
+    const va = sortValue(a, key, all, raids);
+    const vb = sortValue(b, key, all, raids);
+    const c = typeof va === "string" ? va.localeCompare(vb, locale()) : va - vb;
+    return dir === "asc" ? c : -c;
+  });
+  const best = all[0];
+  const head = h("tr", {}, COLS.map((col) => {
+    const active = col.key === key;
+    return h("th", { className: col.num ? "num" : "", attrs: { scope: "col", "aria-sort": active ? (dir === "asc" ? "ascending" : "descending") : null } }, [
+      h("button", {
+        className: "sorter",
+        attrs: { type: "button", title: t("sortBy", { col: col.label() }) },
+        on: {
+          click: () => {
+            const textual = col.key === "item" || col.key === "source" || col.key === "slot";
+            S.sort = active ? { key, dir: dir === "asc" ? "desc" : "asc" } : { key: col.key, dir: textual ? "asc" : "desc" };
+            rerender();
+          },
+        },
+      }, [h("span", { text: col.label() }), icon("sort")]),
+    ]);
+  }));
+  const body = h("tbody", {}, ups.map((u) => h("tr", { className: best && u.item === best.item ? "is-best" : "" }, [
+    h("td", { className: "num mono", text: String(all.indexOf(u) + 1) }),
+    h("td", {}, [h("span", { className: "gt__it" }, [itemIcon(u.item, u.icon), itemLink(u.item, u.level, { name: u.name })])]),
+    h("td", {}, [h("span", { className: "gt__it" }, [sourceTile(u, raids, "boss-thumb--sm"), h("span", {}, [h("span", { text: sourceName(u, raids) }), sourceName(u, raids) === whereLabel(u) ? null : h("span", { className: "gt__src", text: ` · ${whereLabel(u)}` })])])]),
+    h("td", { className: "gt__slot", text: qeSlotLabel(u.slot) }),
+    h("td", { className: "num mono", text: String(u.level ?? "?") }),
+    h("td", { className: "num" }, [h("span", { className: "pct mono", text: fmtPct(u.percDiff) })]),
+  ])));
+  return h("div", { className: "table-wrap", attrs: { tabindex: "0", role: "region", "aria-label": t("allReports") } }, [h("table", { className: "gt gt--report" }, [h("thead", {}, [head]), body])]);
+}
+
+/** The character block above the gear table: name, spec, avg ilvl, Raider.io read time. */
+function gearId() {
+  const c = char();
+  const { avg, count, total } = computeAvgIlvl(c.gear);
+  const kids = [
+    h("div", { className: "gid__name", text: c.name || t("unknownCharacter") }),
+    h("div", { className: "gid__spec", text: c.spec && c.class ? `${c.spec} ${c.class}` : t("unknownSpec") }),
+    h("div", { className: "gid__ilvl" }, [h("span", { className: "mono", text: avg === null ? "?" : String(avg) }), h("small", { text: count < total ? `ilvl · ${count}/${total}` : "ilvl" })]),
+  ];
+  if (typeof c.gear_as_of === "string") {
+    const read = parseDate(c.gear_as_of);
+    const stale = read && Date.now() - read.getTime() > DAY_MS;
+    kids.push(h("div", { className: `gid__asof${stale ? " is-stale" : ""}`, text: t("raiderioRead", { when: relativeTime(c.gear_as_of) }), attrs: { title: absoluteTime(c.gear_as_of) } }));
+  }
+  const prof = raiderioProfileUrl(c);
+  if (prof) kids.push(extLink(prof, t("updateRio"), "gid__upd"));
+  return h("div", { className: "gid" }, kids);
+}
+
+/** Gear by slot: equipped item and ilvl, then the best upgrade in the open report. */
+function gearTable() {
+  const c = char();
+  const raids = currentRaids();
+  const bySlot = new Map((c.gear || []).map((g) => [g.slot, g]));
+  const best = bestUpgradeBySlot(c, S.tab);
+  const top = upgradesFor(S.tab)[0];
+  const head = h("tr", {}, [
+    h("th", { text: t("slot"), attrs: { scope: "col" } }),
+    h("th", { text: t("equipped"), attrs: { scope: "col" } }),
+    h("th", { className: "num", text: t("ilvl"), attrs: { scope: "col" } }),
+    h("th", { text: t("bestFor", { diff: S.tab }), attrs: { scope: "col" } }),
+    h("th", { className: "num", text: t("ilvl"), attrs: { scope: "col" } }),
+    h("th", { className: "num", text: t("gain"), attrs: { scope: "col" } }),
+  ]);
+  const body = h("tbody", {}, ILVL_SLOTS.map((slot) => {
+    const g = bySlot.get(slot);
+    const up = best.get(slot);
+    const isTop = up && top && up.item === top.item;
+    return h("tr", { className: isTop ? "is-best" : "" }, [
+      h("th", { className: "gt__slot", text: slotLabel(slot), attrs: { scope: "row" } }),
+      h("td", {}, [g ? h("span", { className: "gt__it" }, [itemIcon(g.item_id, g.icon), itemLink(g.item_id, g.ilvl, { bonus: g.bonus_ids, name: g.name })]) : h("span", { className: "muted", text: "–" })]),
+      h("td", { className: "num mono", text: g && Number.isFinite(g.ilvl) ? String(g.ilvl) : "?" }),
+      h("td", {}, [up
+        ? h("span", { className: "gt__it" }, [itemIcon(up.item, up.icon), h("span", { className: "gt__upw" }, [itemLink(up.item, up.level, { name: up.name }), h("span", { className: "gt__src", text: sourceName(up, raids) })])])
+        : h("span", { className: "muted", text: t("noneShort") })]),
+      h("td", { className: "num mono", text: up && Number.isFinite(up.level) ? String(up.level) : "" }),
+      h("td", { className: "num" }, [up ? h("span", { className: "pct mono", text: fmtPct(up.percDiff) }) : null]),
+    ]);
+  }));
+  return h("div", { className: "table-wrap", attrs: { tabindex: "0", role: "region", "aria-label": t("gearTable") } }, [h("table", { className: "gt gt--gear" }, [h("thead", {}, [head]), body])]);
+}
+
+function foldSection(id, title, hint, bodyKids) {
+  const d = h("details", { className: "fold-sec", attrs: { open: S.folds.has(id) } }, [
+    h("summary", { className: "disclose" }, [h("span", { className: "fold__title", text: title }), h("span", { className: "fold__hint", text: hint })]),
+    h("div", { className: "fold-sec__body" }, bodyKids),
+  ]);
+  d.addEventListener("toggle", () => {
+    if (d.open) S.folds.add(id);
+    else S.folds.delete(id);
+  });
+  return d;
+}
+
+function folds(all) {
+  const power = computePowerToGain(filterLoc(all, S.loc));
+  const kids = [
+    foldSection("report", t("allReports"), t("allReportsHint", { n: all.length, diff: S.tab }), [
+      h("div", { className: "controls" }, [sourceFilters(all), reportLink(S.tab)]),
+      power
+        ? h("p", { className: "power", attrs: { title: t("powerHint") } }, [
+            h("span", { text: t("powerToGain") }),
+            h("b", { className: "mono", text: fmtPct(power.pct) }),
+            h("span", { text: S.loc === "All" ? t("powerNote", { n: power.items }) : t("powerNoteLoc", { n: power.items, loc: S.loc }) }),
+          ])
+        : null,
+      h("p", { className: "sh__cap", text: t("reportCap") }),
+      reportTable(all),
+    ]),
+  ];
+  if (Array.isArray(char().gear) && char().gear.length) {
+    kids.push(foldSection("gear", t("gearFold"), t("gearFoldHint"), [h("div", { className: "gear" }, [gearId(), gearTable()])]));
+  }
+  return h("div", { className: "folds" }, kids);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Rail: run status, changes since the previous run, run history
+// ---------------------------------------------------------------------------------------------
+function reportLinks(reports, stop) {
+  const byDiff = new Map(reports.map((r) => [r.difficulty, r]));
+  return h("span", { className: "hrow__reports" }, REPORT_DIFFICULTIES.filter((d) => byDiff.has(d)).map((d) => {
+    const r = byDiff.get(d);
+    const up = r.uploaded === true && !r.error;
+    const a = linkOrText(r.error ? null : isReportUrl(r.report_url), d, {
+      className: `hrow__rep${r.error ? " is-fail" : ""}${up ? " is-up" : ""}`,
+      title: t(r.error ? "reportError" : up ? "reportTitleUploaded" : "reportTitle", { diff: d }),
+      kids: up ? [icon("check")] : null,
+    });
+    if (stop) a.addEventListener("click", (e) => e.stopPropagation());
+    return a;
+  }));
+}
+
+function statusBlock() {
+  const run = S.data.run || {};
+  const when = run.finished_at || run.started_at;
+  const gh = isGithubUrl(run.url);
+  const c = char();
+  return h("div", { className: `status${run.ok ? "" : " is-fail"}` }, [
+    h("div", { className: "status__row" }, [
+      h("span", { className: `tag ${run.ok ? "tag--ok" : "tag--fail"}`, text: run.ok ? t("ok") : t("failed") }),
+      h("span", { className: "status__when", text: relativeTime(when), attrs: { title: absoluteTime(when) } }),
+    ]),
+    h("div", { className: "status__row status__meta" }, [h("span", { text: `${triggerLabel(run.trigger)} · ${shortDate(when)}` }), gh ? extLink(gh, "GitHub", "hrow__gh") : null]),
+    c && Array.isArray(c.reports) && c.reports.length ? reportLinks(c.reports, false) : null,
+    run.ok ? null : h("p", { className: "status__why", text: t("failedWhy") }),
+  ]);
+}
+
+function historyBlock() {
+  const runs = indexRuns();
+  const box = h("div", { className: "history" });
+  if (!runs.length) {
+    box.appendChild(h("p", { className: "muted", text: t("noRunsRecorded") }));
     return box;
   }
-  box.appendChild(
-    h("span", {
-      className: "changes__title",
-      text: t("sincePreviousWhen", { when: relativeTime(prev.started_at) }),
-      attrs: { title: absoluteTime(prev.started_at) },
-    })
-  );
-  const body = h("div", { className: "changes__body" });
-  box.appendChild(body);
+  const groups = groupRuns(runs);
+  const VISIBLE = 7;
+  const shown = S.historyExpanded ? groups : groups.slice(0, VISIBLE);
+  const list = h("ol", { className: "history__list" });
+  shown.forEach((g) => {
+    const [head, ...rest] = g;
+    const open = S.openGroups.has(head.id);
+    list.appendChild(historyRow(head, rest.length ? { n: rest.length, open } : null, false));
+    if (open) rest.forEach((r) => list.appendChild(historyRow(r, null, true)));
+  });
+  box.appendChild(list);
+  if (groups.length > VISIBLE) {
+    box.appendChild(h("button", {
+      className: "pill pill--action",
+      text: S.historyExpanded ? t("showFewer") : t("showAll", { n: runs.length }),
+      attrs: { type: "button", "aria-expanded": String(S.historyExpanded) },
+      on: { click: () => { S.historyExpanded = !S.historyExpanded; rerender(); } },
+    }));
+  }
+  return box;
+}
+function historyRow(run, fold, nested) {
+  const active = Boolean(S.data && S.data.run && S.data.run.id === run.id);
+  const reports = (Array.isArray(run.characters) ? run.characters : []).flatMap((c) => (Array.isArray(c.reports) ? c.reports : []));
+  const gh = isGithubUrl(run.url);
+  const ghLink = gh ? h("a", { className: "hrow__gh", attrs: { href: gh, target: "_blank", rel: "noopener noreferrer", "aria-label": `GitHub ${shortDate(run.started_at)}` } }, [h("span", { text: "GitHub" }), icon("ext")]) : null;
+  if (ghLink) ghLink.addEventListener("click", (e) => e.stopPropagation());
+  return h("li", {
+    className: `hrow${run.ok ? "" : " hrow--fail"}${nested ? " hrow--nested" : ""}${active ? " is-active" : ""}`,
+    attrs: { tabindex: "0", role: "link", "aria-current": active ? "true" : null, "aria-label": t("openRun", { when: shortDate(run.started_at) }) },
+    on: {
+      click: () => navigateToRun(run.id),
+      keydown: (e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigateToRun(run.id);
+        }
+      },
+    },
+  }, [
+    h("span", { className: "hrow__when mono", text: shortDate(run.started_at), attrs: { title: absoluteTime(run.started_at) } }),
+    h("span", { className: "hrow__trig", text: triggerLabel(run.trigger) }),
+    h("span", { className: `tag ${run.ok ? "tag--ok" : "tag--fail"}`, text: run.ok ? t("ok") : t("failed") }),
+    reportLinks(reports, true),
+    ghLink,
+    fold
+      ? h("button", {
+          className: `hrow__fold${fold.open ? " is-open" : ""}`,
+          attrs: { type: "button", "aria-expanded": String(fold.open) },
+          on: {
+            click: (e) => {
+              e.stopPropagation();
+              if (S.openGroups.has(run.id)) S.openGroups.delete(run.id);
+              else S.openGroups.add(run.id);
+              rerender();
+            },
+          },
+        }, [icon(fold.open ? "minus" : "plus"), h("span", { text: t("sameResults", { n: fold.n }) })])
+      : null,
+  ]);
+}
 
-  loadPreviousRun(prev.id).then((previous) => {
-    // The page may have moved on (another run, another tab) while this loaded.
-    if (!box.isConnected) return;
-    if (!previous) {
-      body.appendChild(h("p", { className: "changes__none", text: t("previousUnavailable") }));
+/** "Since the previous run": diff against the closest older run that has this report. */
+function previousRunWith(runId, diff) {
+  const runs = indexRuns();
+  const at = runs.findIndex((r) => r.id === runId);
+  if (at < 0) return null;
+  for (const run of runs.slice(at + 1)) {
+    const c = Array.isArray(run.characters) ? run.characters[0] : null;
+    const reps = c && Array.isArray(c.reports) ? c.reports : [];
+    if (reps.some((r) => r.difficulty === diff && !r.error)) return run;
+  }
+  return null;
+}
+function loadPrev(id) {
+  if (!S.prev.has(id)) {
+    const url = runDataUrl(id);
+    S.prev.set(id, url ? fetchJson(url).then((d) => { learnItems(d); return d; }).catch(() => null) : Promise.resolve(null));
+  }
+  return S.prev.get(id);
+}
+function diffRuns(cur, prev, diff) {
+  const ups = (c) => {
+    const r = c && Array.isArray(c.reports) ? c.reports.find((x) => x.difficulty === diff) : null;
+    return new Map(computeUpgrades(r ? r.results : []).map((u) => [u.item, u]));
+  };
+  const now = ups(cur);
+  const before = ups(prev);
+  const gearOf = (c) => new Map((c && Array.isArray(c.gear) ? c.gear : []).map((g) => [g.slot, g]));
+  const gn = gearOf(cur);
+  const gb = gearOf(prev);
+  const gear = [];
+  for (const slot of ILVL_SLOTS) {
+    const a = gb.get(slot);
+    const b = gn.get(slot);
+    if (a && b && (a.item_id !== b.item_id || a.ilvl !== b.ilvl)) gear.push({ slot, before: a, after: b });
+  }
+  return { added: [...now.values()].filter((u) => !before.has(u.item)), removed: [...before.values()].filter((u) => !now.has(u.item)), gear };
+}
+function changesBlock(diff) {
+  const box = h("div", { className: "changes" });
+  const runId = S.data && S.data.run ? S.data.run.id : null;
+  const prev = runId ? previousRunWith(runId, diff) : null;
+  if (!prev) {
+    box.appendChild(h("p", { className: "muted", text: t("noPrevious") }));
+    return box;
+  }
+  const when = relativeTime(prev.started_at);
+  box.setAttribute("title", absoluteTime(prev.started_at));
+  const body = h("div", { className: "changes__body", attrs: { "aria-live": "polite" } }, [h("span", { className: "muted", text: "…" })]);
+  box.appendChild(body);
+  const data = S.data;
+  loadPrev(prev.id).then((p) => {
+    clear(body);
+    if (!p) {
+      body.appendChild(h("p", { className: "muted", text: t("previousUnavailable") }));
       return;
     }
-    const current = (data.characters || [])[0];
-    const { added, removed, gear } = diffRuns(current, (previous.characters || [])[0], difficulty);
+    const { added, removed, gear } = diffRuns((data.characters || [])[0], (p.characters || [])[0], diff);
     if (!added.length && !removed.length && !gear.length) {
-      body.appendChild(h("p", { className: "changes__none", text: t("noChanges") }));
+      body.appendChild(h("p", { className: "changes__none" }, [icon("check"), h("span", { text: t("noChanges", { when }) })]));
       return;
     }
-    const itemList = (items, mod) =>
-      items.map((u) =>
-        h("span", { className: `changes__item changes__item--${mod}` }, [
-          linkOrText(wowheadItemUrl(u.item, null, u.level), cachedItemLabel(u.item), {
-            className: "changes__link",
-          }),
-          h("span", { className: "changes__pct mono", text: fmtPct(u.percDiff) }),
-        ])
-      );
-    const line = (label, mod, kids) =>
-      h("div", { className: "changes__line" }, [
-        h("span", { className: `changes__tag changes__tag--${mod}`, text: label }),
-        h("div", { className: "changes__items" }, kids),
-      ]);
-    if (added.length) body.appendChild(line(t("changesNew"), "new", itemList(added, "new")));
-    if (removed.length) body.appendChild(line(t("changesGone"), "gone", itemList(removed, "gone")));
+    const line = (label, mod, kids) => h("div", { className: "changes__line" }, [h("span", { className: `tag tag--${mod}`, text: label }), h("div", { className: "changes__items" }, kids)]);
+    const items = (list) => list.map((u) => h("span", { className: "changes__item" }, [itemLink(u.item, u.level, { name: u.name }), h("span", { className: "pct mono", text: fmtPct(u.percDiff) })]));
+    body.appendChild(h("p", { className: "changes__lead", text: t("changedSince", { when }) }));
+    if (added.length) body.appendChild(line(t("changesNew"), "ok", items(added)));
+    if (removed.length) body.appendChild(line(t("changesGone"), "muted", items(removed)));
     if (gear.length) {
-      body.appendChild(
-        line(
-          t("changesGear"),
-          "gear",
-          // Same item: its item level moved. Another item: name it.
-          gear.map(({ slot, before, after }) => {
-            const ilvls = `${before.ilvl ?? "?"} → ${after.ilvl ?? "?"}`;
-            const swapped = before.item_id !== after.item_id;
-            return h("span", { className: "changes__item" }, [
-              h("span", { className: "changes__slot", text: `${slotLabel(slot)} ` }),
-              swapped
-                ? h("span", {
-                    text: `${cachedItemLabel(before.item_id, before.name)} → ${cachedItemLabel(after.item_id, after.name)}`,
-                    attrs: { title: ilvls },
-                  })
-                : h("span", {
-                    className: "mono",
-                    text: ilvls,
-                    attrs: { title: cachedItemLabel(after.item_id, after.name) },
-                  }),
-            ]);
-          })
-        )
-      );
+      body.appendChild(line(t("changesGear"), "muted", gear.map(({ slot, before, after }) => h("span", { className: "changes__item" }, [
+        h("span", { className: "changes__slot", text: `${slotLabel(slot)} ` }),
+        h("span", { className: "mono", text: `${before.ilvl ?? "?"} → ${after.ilvl ?? "?"}` }),
+      ]))));
     }
-    refreshWowheadLinks();
+    if (window.$WowheadPower && typeof window.$WowheadPower.refreshLinks === "function") window.$WowheadPower.refreshLinks();
   });
   return box;
 }
 
-// ---------------------------------------------------------------------
-// Gear: WoW-style paper doll. Shirt and tabard are cosmetic and left out,
-// so the columns are rebalanced to seven slots each. Under every slot: the
-// best upgrade for it in the report tab that's open (rings and trinkets:
-// the best two, in order), the same picks "power to gain" adds up.
-// ---------------------------------------------------------------------
-const PAPERDOLL_LEFT = ["head", "neck", "shoulder", "back", "chest", "wrist", "hands"];
-const PAPERDOLL_RIGHT = ["waist", "legs", "feet", "finger1", "finger2", "trinket1", "trinket2"];
-const PAPERDOLL_WEAPONS = ["main_hand", "off_hand"];
-
-// QE's slot names (results[].slot) -> paper-doll slots, in fill order.
-const QE_SLOT_TO_GEAR = {
-  Head: ["head"],
-  Neck: ["neck"],
-  Shoulder: ["shoulder"],
-  Back: ["back"],
-  Chest: ["chest"],
-  Wrist: ["wrist"],
-  Hands: ["hands"],
-  Waist: ["waist"],
-  Legs: ["legs"],
-  Feet: ["feet"],
-  Finger: ["finger1", "finger2"],
-  Trinket: ["trinket1", "trinket2"],
-  "2H Weapon": ["main_hand"],
-  "1H Weapon": ["main_hand"],
-  WeaponMainHand: ["main_hand"],
-  Offhand: ["off_hand"],
-  Shield: ["off_hand"],
-};
-
-/** slot -> best upgrade for it in the open report tab. Upgrades come sorted best first.
- * A ring or trinket that's a better copy of one you wear goes under that one. */
-function bestUpgradeBySlot(character, gearBySlot) {
-  const reports = Array.isArray(character.reports) ? character.reports : [];
-  const report = reports.find((r) => r.difficulty === state.reportsTab && !r.error);
-  const bySlot = new Map();
-  if (!report) return bySlot;
-  for (const u of computeUpgrades(report.results)) {
-    const targets = Object.hasOwn(QE_SLOT_TO_GEAR, u.slot) ? QE_SLOT_TO_GEAR[u.slot] : [];
-    const wearing = (slot) => gearBySlot.get(slot)?.item_id === u.item;
-    const ordered = [...targets.filter(wearing), ...targets.filter((slot) => !wearing(slot))];
-    const free = ordered.find((slot) => !bySlot.has(slot));
-    if (free) bySlot.set(free, u);
-  }
-  return bySlot;
-}
-
-function paperdollSlot(slot, bySlot, best) {
-  const g = bySlot.get(slot);
-  const classes = ["pd-slot"];
-
-  if (!g) {
-    classes.push("pd-slot--empty");
-    return h("div", { className: classes.join(" ") }, [
-      h("span", { className: "pd-slot__label", text: slotLabel(slot) }),
-    ]);
-  }
-
-  const url = wowheadItemUrl(g.item_id, g.bonus_ids, g.ilvl);
-  const link = linkOrText(url, cachedItemLabel(g.item_id, g.name), { className: "pd-slot__item" });
-  const ilvlPill = h("span", {
-    className: "pill pill--ilvl mono pd-slot__ilvl",
-    text: Number.isFinite(g.ilvl) ? String(g.ilvl) : "?",
-  });
-
-  const main = h("div", { className: "pd-slot__main" }, [link, ilvlPill]);
-  const up = best.get(slot);
-  if (up) {
-    main.appendChild(
-      h(
-        "div",
-        {
-          className: "pd-slot__up",
-          attrs: { title: t("bestForSlot", { diff: state.reportsTab }) },
-        },
-        [
-          h("span", { className: "pd-slot__up-name" }, [
-            h("span", { className: "pd-slot__up-arrow", text: "↑ ", attrs: { "aria-hidden": "true" } }),
-            linkOrText(wowheadItemUrl(up.item, null, up.level), cachedItemLabel(up.item), {
-              className: "pd-slot__up-item",
-            }),
-          ]),
-          h("span", { className: "pd-slot__up-ilvl mono", text: Number.isFinite(up.level) ? String(up.level) : "" }),
-          h("span", { className: "pd-slot__up-pct mono", text: fmtPct(up.percDiff) }),
-        ]
-      )
-    );
-  }
-
-  return h("div", { className: classes.join(" ") }, [
-    h("span", { className: "pd-slot__label", text: slotLabel(slot) }),
-    main,
+function rail() {
+  const block = (id, title, kid) => h("section", { className: "rail-block", attrs: { "aria-labelledby": id } }, [
+    h("h2", { className: "rail-block__h", text: title, attrs: { id } }),
+    kid,
+  ]);
+  return h("aside", { className: "rail", attrs: { "aria-label": t("railLabel") } }, [
+    block("stH", t("status"), statusBlock()),
+    reportFor(S.tab) && !reportFor(S.tab).error ? block("chH", `${t("changes")} · ${S.tab}`, changesBlock(S.tab)) : null,
+    block("histH", t("historyHeading"), historyBlock()),
   ]);
 }
 
-function renderPaperdoll(character) {
-  clear(els.gearContainer);
-
-  const gear = Array.isArray(character.gear) ? character.gear : [];
-  const bySlot = new Map(gear.map((g) => [g.slot, g]));
-  const best = bestUpgradeBySlot(character, bySlot);
-
-  const idBlock = h("div", { className: "pd-id" }, [
-    h("div", { className: "pd-id__name", text: character.name || t("unknownCharacter") }),
-    h("div", { className: "pd-id__spec", text: specLabel(character) }),
+// ---------------------------------------------------------------------------------------------
+// Footer and page
+// ---------------------------------------------------------------------------------------------
+function footer() {
+  const prof = raiderioProfileUrl(char());
+  return h("footer", { className: "foot" }, [
+    h("details", { className: "fold" }, [
+      h("summary", { className: "disclose" }, [h("span", { className: "fold__title", text: t("howItWorks") }), h("span", { className: "fold__hint", text: t("howHint") })]),
+      h("ol", { className: "fold__list" }, ["how1", "how2", "how3", "how4"].map((k) => h("li", { text: t(k) }))),
+    ]),
+    // Raider.io's API terms ask for a link back to raider.io.
+    h("p", { className: "foot__line" }, [
+      h("span", { text: `${t("gearData")} ` }),
+      h("a", { text: "Raider.IO", attrs: { href: prof || "https://raider.io", target: "_blank", rel: "noopener noreferrer" } }),
+      h("span", { text: " · QE Live · Wowhead · " }),
+      h("a", { text: t("sourceOnGithub"), attrs: { href: "https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater", target: "_blank", rel: "noopener noreferrer" } }),
+    ]),
   ]);
-  const { avg, count, total } = computeAvgIlvl(gear);
-  const ilvlLine = h("div", { className: "pd-id__ilvl" }, [
-    h("span", { text: t("avgIlvlPrefix") }),
-    h("b", { className: "mono", text: avg === null ? "?" : String(avg) }),
-  ]);
-  if (count < total) {
-    ilvlLine.appendChild(h("span", { className: "pd-id__ilvl-note", text: t("slotsNote", { count, total }) }));
-  }
-  idBlock.appendChild(ilvlLine);
-  // When the gear source last read the character (Raider.io's crawl time). Older runs lack it.
-  // More than a day old turns it gold: QE then measured upgrades against gear that may have
-  // changed since.
-  const profileUrl = raiderioProfileUrl(character);
-  document.getElementById("gearSourceLink").setAttribute("href", profileUrl || "https://raider.io");
-  if (typeof character.gear_as_of === "string" && character.gear_as_of) {
-    const read = parseDate(character.gear_as_of);
-    const stale = read !== null && Date.now() - read.getTime() > DAY_MS;
-    const asOf = h("div", {
-      className: `pd-id__asof${stale ? " pd-id__asof--stale" : ""}`,
-      text: t("raiderioRead", { when: relativeTime(character.gear_as_of) }),
-    });
-    asOf.setAttribute("title", absoluteTime(character.gear_as_of));
-    idBlock.appendChild(asOf);
-    if (stale) {
-      idBlock.appendChild(
-        h("span", {
-          className: "pill pill--warn pill--sm pd-id__stale",
-          text: t("gearStale"),
-          attrs: { title: t("gearStaleTitle") },
-        })
-      );
+}
+
+function render(app) {
+  clear(app);
+  app.appendChild(topBar());
+  const page = h("main", { className: "page", attrs: { id: "main" } });
+  app.appendChild(page);
+  page.appendChild(pageHead());
+  const a = alerts();
+  if (a) page.appendChild(a);
+  if (S.data && char()) {
+    settleTab();
+    const all = upgradesFor(S.tab);
+    const main = h("div", { className: "main" }, [raidNightSection(all)]);
+    const rep = reportFor(S.tab);
+    if (rep && !rep.error) {
+      main.appendChild(h("div", { className: "two" }, [dungeonWeek(all), crestSection()]));
+      main.appendChild(folds(all));
+    } else if (availableTabs().length) {
+      main.appendChild(h("div", { className: "two" }, [crestSection()]));
     }
+    page.appendChild(h("div", { className: "grid" }, [main, rail()]));
+  } else if (S.data) {
+    page.appendChild(h("div", { className: "grid" }, [h("p", { className: "empty", text: t("noCharacterData") }), rail()]));
   }
-  // Raider.io's update button is meant for people; this pipeline never presses it (their API
-  // terms forbid automating unpublished endpoints), so offer it as a manual link.
-  if (profileUrl) {
-    idBlock.appendChild(
-      linkOrText(profileUrl, t("updateOnRaiderio"), { className: "pill pill--link pill--sm pd-id__update" })
-    );
-  }
-
-  const column = (slots, className) =>
-    h("div", { className }, slots.map((slot) => paperdollSlot(slot, bySlot, best)));
-  const doll = h("div", { className: "paperdoll" }, [
-    idBlock,
-    column(PAPERDOLL_LEFT, "pd-col pd-col--left"),
-    column(PAPERDOLL_RIGHT, "pd-col pd-col--right"),
-    column(PAPERDOLL_WEAPONS, "pd-weapons"),
-  ]);
-  els.gearContainer.appendChild(doll);
+  page.appendChild(footer());
 }
 
-// ---------------------------------------------------------------------
-// Top-level render: tiles + reports + crests + gear, all built from a full
-// run summary and all following the displayed run together.
-// ---------------------------------------------------------------------
-function renderRunData(fullData) {
-  state.runData = fullData;
-  clear(els.reportsContainer);
-  clear(els.crestContainer);
-  clear(els.gearContainer);
-  clear(els.tilesContainer);
-  renderMascot(Boolean(fullData.run && fullData.run.ok === true));
-
-  const characters = Array.isArray(fullData.characters) ? fullData.characters : [];
-  if (characters.length === 0) {
-    els.reportsContainer.appendChild(errorCapsule(t("runNoCharacterData")));
-    return;
-  }
-
-  renderTiles(fullData);
-
-  const character = characters[0];
-  renderReportsCard(character, 0);
-  renderCrestSidebar(character);
-  renderPaperdoll(character);
-
-  refreshWowheadLinks();
-}
-
-// ---------------------------------------------------------------------
-// Loading orchestration.
-// ---------------------------------------------------------------------
-function showGlobalError(message) {
-  clear(els.globalError);
-  els.globalError.hidden = false;
-  els.globalError.appendChild(errorCapsule(message));
-}
-
-function clearGlobalError() {
-  els.globalError.hidden = true;
-  clear(els.globalError);
-}
-
-function clearAllRunViews() {
-  state.runData = null;
-  clear(els.tilesContainer);
-  clear(els.reportsContainer);
-  clear(els.crestContainer);
-  clear(els.gearContainer);
-  renderMascot(false);
-}
-
-async function loadLatest() {
-  state.activeRunId = state.index && state.index.runs && state.index.runs[0] ? state.index.runs[0].id : null;
-  renderViewingBanner(null, true);
-  updateHistorySelectionUI();
-  try {
-    const data = await fetchJson("data/latest.json");
-    state.activeRunId = data.run && data.run.id ? data.run.id : state.activeRunId;
-    updateHistorySelectionUI();
-    clearGlobalError();
-    renderRunData(data);
-  } catch (err) {
-    clearAllRunViews();
-    els.reportsContainer.appendChild(errorCapsule(t("couldNotLoadLatest", { msg: err.message })));
-  }
-}
-
-async function selectRun(id) {
-  const url = runDataUrl(id);
-  if (!url) {
-    clearAllRunViews();
-    els.reportsContainer.appendChild(errorCapsule(t("invalidRunId", { id })));
-    return;
-  }
-  const isLatest =
-    state.index && state.index.runs && state.index.runs[0] && state.index.runs[0].id === id;
-  state.activeRunId = id;
-  renderViewingBanner(id, Boolean(isLatest));
-  updateHistorySelectionUI();
-  try {
-    const data = await fetchJson(url);
-    clearGlobalError();
-    renderRunData(data);
-  } catch (err) {
-    clearAllRunViews();
-    els.reportsContainer.appendChild(errorCapsule(t("couldNotLoadRun", { id, msg: err.message })));
-  }
-}
-
-function getRunIdFromHash() {
-  const m = /^#run=([A-Za-z0-9_-]+)$/.exec(location.hash);
-  return m ? m[1] : null;
-}
-
-function applyHash() {
-  const id = getRunIdFromHash();
-  if (id) selectRun(id);
-  else loadLatest();
-}
-
-function navigateToRun(id) {
-  if (location.hash === `#run=${id}`) {
-    applyHash();
-    return;
-  }
-  location.hash = `run=${id}`;
-}
-
-function navigateToLatest() {
-  if (location.hash) {
-    history.pushState("", document.title, location.pathname + location.search);
-  }
-  applyHash();
-}
-
-// ---------------------------------------------------------------------
-// Language switch (EN | NL). Switching redraws everything from what's
-// already loaded; nothing is fetched again.
-// ---------------------------------------------------------------------
-function applyLanguage() {
-  applyStaticText();
-  // The <h1> is the single source of truth for the page title; the static
-  // <title> in the HTML is only the no-JS fallback.
-  const titleH1 = document.getElementById("pageTitle");
-  if (titleH1 && titleH1.textContent) document.title = titleH1.textContent;
-  document.querySelectorAll("#langSwitch [data-lang]").forEach((btn) => {
-    const on = btn.getAttribute("data-lang") === lang();
-    btn.classList.toggle("is-active", on);
-    btn.setAttribute("aria-pressed", String(on));
-  });
-}
-
-function setupLanguageSwitch() {
-  document.querySelectorAll("#langSwitch [data-lang]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const next = btn.getAttribute("data-lang");
-      if (next === lang()) return;
-      setLang(next);
-      applyLanguage();
-      rerender();
-    });
-  });
-}
-
-function rerender() {
-  if (!state.index) return;
-  renderHeader(state.index);
-  renderHistory(state.index);
-  const runs = state.index.runs || [];
-  const isLatest = !state.activeRunId || (runs[0] && runs[0].id === state.activeRunId);
-  renderViewingBanner(state.activeRunId, isLatest);
-  if (state.runData) renderRunData(state.runData);
-}
-
-// ---------------------------------------------------------------------
-// Init.
-// ---------------------------------------------------------------------
-async function init() {
-  collectEls();
-  applyLanguage();
-  setupLanguageSwitch();
-  setupWowheadTooltips();
-  observeWowheadNames();
-
-  let indexData;
-  try {
-    indexData = await fetchJson("data/index.json");
-  } catch (err) {
-    showGlobalError(t("couldNotLoadIndex", { msg: err.message }));
-    els.headerStatus.appendChild(h("span", { className: "pill pill--fail", text: t("unavailable") }));
-    els.historyContainer.appendChild(h("p", { className: "muted-note", text: t("historyUnavailable") }));
-    els.reportsContainer.appendChild(h("p", { className: "muted-note", text: t("reportsUnavailable") }));
-    return;
-  }
-
-  if (!indexData || !Array.isArray(indexData.runs)) {
-    showGlobalError(t("indexFormat"));
-    return;
-  }
-
-  state.index = indexData;
-  renderHeader(indexData);
-  renderHistory(indexData);
-
-  window.addEventListener("hashchange", applyHash);
-  applyHash();
-}
-
-document.addEventListener("DOMContentLoaded", init);
+if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("DOMContentLoaded", boot);

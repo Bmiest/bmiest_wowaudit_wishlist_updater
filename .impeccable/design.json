@@ -1,0 +1,336 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-04T08:03:12+00:00",
+  "title": "Design System: bmiest gear upgrades",
+  "extensions": {
+    "designLanguage": {
+      "version": 2,
+      "surface": "site/index.html",
+      "familyRepo": "Bmiest/bmiest-design",
+      "sibling": "twitch-overlay-v2 DESIGN.md",
+      "scopeNote": "family = shared v2 language, should match the family DESIGN.md; wishlist = this product only. Operate mode: the world dresses standard tabs, filters, tables and links.",
+      "changeLog": [
+        {
+          "date": "2026-10-04",
+          "branch": "design/v2-dashboard",
+          "commits": [
+            "56a05fb",
+            "b4fa0af",
+            "578ba26"
+          ],
+          "change": "Dashboard rebuilt in v2 as a raid-night plan (mock C). --track added on :root in style.css; failed runs are rose (red is the family on-air colour)."
+        }
+      ]
+    },
+    "colorMeta": {
+      "jade": {
+        "role": "primary",
+        "displayName": "Mistweaver Jade",
+        "scope": "family",
+        "purpose": "OK and active: OK status, active tab/filter/language, caps, percentages, meters, links, chevron, focus.",
+        "tonalRamp": [
+          "oklch(15% 0.15 165)",
+          "oklch(25% 0.15 165)",
+          "oklch(35% 0.15 165)",
+          "oklch(48% 0.15 165)",
+          "oklch(60% 0.15 165)",
+          "oklch(72% 0.15 165)",
+          "oklch(84% 0.15 165)",
+          "oklch(95% 0.15 165)"
+        ]
+      },
+      "jade-deep": {
+        "role": "primary",
+        "displayName": "Deep Jade",
+        "scope": "family",
+        "purpose": "Inset ring on the viewed history row."
+      },
+      "jade-ghost": {
+        "role": "primary",
+        "displayName": "Jade Ghost",
+        "scope": "family",
+        "purpose": "Link underlines and selection."
+      },
+      "gold": {
+        "role": "secondary",
+        "displayName": "Podium Gold",
+        "scope": "wishlist",
+        "purpose": "The single best upgrade in view: tile frame, item, top dungeon, table row."
+      },
+      "rose": {
+        "role": "tertiary",
+        "displayName": "Faded Rose",
+        "scope": "family",
+        "purpose": "A failed run or error (FAILED block and tag with ink-900 text, failed status panel, error alert), warnings and staleness. Red stays the family on-air colour; the dashboard is never live."
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "scope": "family",
+        "purpose": "Primary text; never #fff."
+      },
+      "paper-dim": {
+        "role": "neutral",
+        "displayName": "Faded Paper",
+        "scope": "family",
+        "purpose": "Lead, alert body, secondary names."
+      },
+      "ink-900": {
+        "role": "neutral",
+        "displayName": "Raid Night Black",
+        "scope": "family",
+        "purpose": "Page ground, bug brand block, ink text on jade/gold."
+      },
+      "ink-850": {
+        "role": "neutral",
+        "displayName": "Table Ink",
+        "scope": "family",
+        "purpose": "Top bar, tile bodies, inactive tabs, changes panel."
+      },
+      "ink-800": {
+        "role": "neutral",
+        "displayName": "Panel Ink",
+        "scope": "family",
+        "purpose": "Tile heads, ribbons, panels, alerts."
+      },
+      "ink-750": {
+        "role": "neutral",
+        "displayName": "Raised Ink",
+        "scope": "family",
+        "purpose": "Pills, tags, bug status/update blocks, icon grounds."
+      },
+      "ink-700": {
+        "role": "neutral",
+        "displayName": "Rule Ink",
+        "scope": "family",
+        "purpose": "All 1px borders and hairlines."
+      },
+      "ink-600": {
+        "role": "neutral",
+        "displayName": "Outline Ink",
+        "scope": "family",
+        "purpose": "Ribbon outline and rank block, dashed empty states."
+      },
+      "ink-400": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "scope": "family",
+        "purpose": "Boss initials, empty text, idle sort arrows."
+      },
+      "ink-300": {
+        "role": "neutral",
+        "displayName": "Caption Grey",
+        "scope": "family",
+        "purpose": "Captions, meta, table and raid group heads, hints."
+      },
+      "ink-200": {
+        "role": "neutral",
+        "displayName": "Soft Grey",
+        "scope": "family",
+        "purpose": "Rail headings, pill/tag text, update block."
+      },
+      "track": {
+        "role": "neutral",
+        "displayName": "Track",
+        "scope": "family",
+        "purpose": "Unfilled meter, paper at 8%."
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Page title",
+        "purpose": "Gear upgrades, once."
+      },
+      "headline": {
+        "displayName": "Raid-night date",
+        "purpose": "Tonight 20:00, time in jade mono figures."
+      },
+      "headline-sub": {
+        "displayName": "Section head",
+        "purpose": "Behind an 11px slanted jade cap."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Status block, tabs, language switch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Pills, tags, rail headings."
+      },
+      "label-wide": {
+        "displayName": "Label wide",
+        "purpose": "Raid group heads, table heads."
+      },
+      "numeric": {
+        "displayName": "Figures",
+        "purpose": "Percentages, dates, countdown."
+      }
+    },
+    "shadows": [
+      {
+        "name": "best-frame",
+        "value": "inset 0 0 0 1px var(--gold)",
+        "purpose": "Doubles the best tile's gold border; not elevation."
+      },
+      {
+        "name": "active-row",
+        "value": "inset 0 0 0 1px var(--jade-deep)",
+        "purpose": "Viewed history row."
+      },
+      {
+        "name": "source-outline",
+        "value": "inset 0 0 0 1px var(--ink-700)",
+        "purpose": "Boss head used as item source."
+      }
+    ],
+    "shapes": [
+      {
+        "name": "slant",
+        "value": "clip-path: polygon(0 0, 100% 0, calc(100% - N) 100%, 0 100%)",
+        "purpose": "N: 11px ribbon, 9px rank block, 6px pill/meter/boss head, 5px tag, 4px small head and section cap."
+      },
+      {
+        "name": "chevron",
+        "value": "7px, 2px jade right+bottom borders, rotate(-45deg) closed, 45deg open",
+        "purpose": "Fold disclosure."
+      },
+      {
+        "name": "empty",
+        "value": "1px dashed var(--ink-600)",
+        "purpose": "Empty states and bosses without upgrades."
+      }
+    ],
+    "motion": [
+      {
+        "name": "t-fast",
+        "value": "160ms",
+        "purpose": "Hover colour, chevron."
+      },
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.22,.61,.36,1)",
+        "purpose": "All transitions."
+      },
+      {
+        "name": "reduced",
+        "value": "transitions to .001ms",
+        "purpose": "prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "gear-stack",
+        "value": "1280px"
+      },
+      {
+        "name": "rail-drop",
+        "value": "1180px"
+      },
+      {
+        "name": "tablet",
+        "value": "900px"
+      },
+      {
+        "name": "tile-row",
+        "value": "720px"
+      },
+      {
+        "name": "gear-cards",
+        "value": "600px"
+      },
+      {
+        "name": "small",
+        "value": "480px"
+      }
+    ],
+    "bossArt": {
+      "source": "Race site cut-outs of Blizzard NPC renders, cropped to the top square, 112x112 WebP",
+      "provenance": "site/bossart.js header",
+      "fallback": "boss initial in ink-400"
+    },
+    "familyDrift": [
+      {
+        "name": "tokens.css copy",
+        "note": "Byte copy of the pre-showcase overlay tokens.css: lacks the overlay's @import (Outfit 300-800) and --live-red."
+      }
+    ],
+    "narrative": {
+      "northStar": "The Raid-Night Plan",
+      "rules": [
+        "The Gold Is the Best Upgrade Rule",
+        "The Red Means a Failed Run Rule",
+        "The Jade Is Healthy Rule",
+        "The Poster Voice Rule",
+        "The Figure Is Mono Rule",
+        "The Flat Ink Rule",
+        "The One Slant Rule"
+      ]
+    }
+  },
+  "components": [
+    {
+      "name": "Broadcast Bug",
+      "kind": "custom",
+      "refersTo": "bug-brand",
+      "description": "Flush blocks: brand, run status (OK jade / Failed red), updated.",
+      "html": "<div class=\"ds-bug\"><span class=\"b\">bmiest</span><span class=\"s\">Run OK</span><span class=\"u\">Updated 1 day ago</span></div><div class=\"ds-bug\" style=\"margin-top:8px\"><span class=\"b\">bmiest</span><span class=\"s f\">Run failed</span><span class=\"u\">Updated 3 h ago</span></div>",
+      "css": ".ds-bug{display:flex;height:40px;font-family:Outfit,system-ui,sans-serif}.ds-bug>*{display:flex;align-items:center;padding:0 16px}.ds-bug .b{background:#0a0b0d;color:#eef1f5;font-size:14px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.ds-bug .s{background:#3fd9a4;color:#0a0b0d;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.ds-bug .s.f{background:#d98b8b;color:#0a0b0d}.ds-bug .u{background:#171a1f;color:#a8b1bc;font-size:13px;font-weight:500}"
+    },
+    {
+      "name": "Tabs",
+      "kind": "custom",
+      "refersTo": "tab",
+      "description": "Flush tablist, selected solid jade.",
+      "html": "<div class=\"ds-tabs\"><button>Heroic</button><button aria-selected=\"true\">Mythic</button></div>",
+      "css": ".ds-tabs{display:inline-flex;height:40px;border:1px solid #1e2228}.ds-tabs button{padding:0 20px;border:0;background:#0e1014;color:#a8b1bc;font:800 13px Outfit,system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}.ds-tabs [aria-selected=true]{background:#3fd9a4;color:#0a0b0d}"
+    },
+    {
+      "name": "Boss Tile",
+      "kind": "custom",
+      "refersTo": "boss-tile",
+      "description": "Signature: head strip over upgrade list; best tile framed in gold.",
+      "html": "<div class=\"ds-rnb\"><div class=\"t\"><span class=\"h\">U</span><span><small>08</small><b>Ula'tek</b></span></div><ul><li class=\"best\"><span>Jan'thrazet</span><span>+1.57%</span></li><li><span>Venomkeeper's Hood</span><span>+0.65%</span></li></ul></div>",
+      "css": ".ds-rnb{width:220px;background:#0e1014;border:1px solid #d8b263;box-shadow:inset 0 0 0 1px #d8b263;font-family:Outfit,system-ui,sans-serif}.ds-rnb .t{display:grid;grid-template-columns:52px 1fr;gap:10px;align-items:center;padding:10px;background:#131519}.ds-rnb .h{width:52px;height:52px;display:grid;place-items:center;background:#171a1f;color:#5b6470;font-weight:800;clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}.ds-rnb small{display:block;font:11px 'JetBrains Mono',monospace;color:#818b98}.ds-rnb b{font-size:14px;font-weight:600;color:#eef1f5}.ds-rnb ul{list-style:none;margin:0;padding:8px 10px 10px;display:grid;gap:2px}.ds-rnb li{display:flex;justify-content:space-between;font-size:13px;color:#eef1f5;min-height:26px;align-items:center}.ds-rnb li span:last-child{font-family:'JetBrains Mono',monospace;color:#3fd9a4}.ds-rnb li.best,.ds-rnb li.best span:last-child{color:#d8b263;font-weight:700}"
+    },
+    {
+      "name": "Ribbon",
+      "kind": "custom",
+      "refersTo": "ribbon",
+      "description": "Ranked dungeon ribbon with meter; best in gold.",
+      "html": "<div class=\"ds-dg\"><div class=\"r best\"><div class=\"in\"><span class=\"k\">1</span><span>Temple of Sethraliss</span></div></div><span class=\"m\"><i style=\"width:90%\"></i></span></div>",
+      "css": ".ds-dg{display:grid;grid-template-columns:260px 120px;gap:16px;align-items:center;font-family:Outfit,system-ui,sans-serif}.ds-dg .r{height:44px;padding:1px;background:#2a2f37;clip-path:polygon(0 0,100% 0,calc(100% - 11px) 100%,0 100%)}.ds-dg .r.best{background:#d8b263}.ds-dg .in{height:100%;display:flex;align-items:center;gap:10px;background:#131519;color:#eef1f5;font-size:14px;font-weight:600;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%)}.ds-dg .k{width:44px;height:100%;display:grid;place-items:center;background:#2a2f37;font:700 14px 'JetBrains Mono',monospace;clip-path:polygon(0 0,100% 0,calc(100% - 9px) 100%,0 100%)}.ds-dg .best .k{background:#d8b263;color:#0a0b0d}.ds-dg .m{display:block;height:10px;background:rgba(238,241,245,.08);clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}.ds-dg .m i{display:block;height:100%;background:#d8b263}"
+    },
+    {
+      "name": "Pills and Tags",
+      "kind": "custom",
+      "refersTo": "pill",
+      "description": "Slanted chips: filter on/off, OK and Failed tags.",
+      "html": "<div class=\"ds-p\"><span class=\"p on\">All 53</span><span class=\"p\">Weapons 4</span><span class=\"t ok\">OK</span><span class=\"t f\">Failed</span></div>",
+      "css": ".ds-p{display:flex;gap:6px;align-items:center;font-family:Outfit,system-ui,sans-serif;text-transform:uppercase;font-weight:700}.ds-p .p{padding:7px 16px 7px 12px;font-size:11px;letter-spacing:.12em;background:#171a1f;color:#a8b1bc;clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}.ds-p .p.on{background:#3fd9a4;color:#0a0b0d}.ds-p .t{padding:3px 11px 3px 8px;font-size:11px;letter-spacing:.14em;background:#171a1f;clip-path:polygon(0 0,100% 0,calc(100% - 5px) 100%,0 100%)}.ds-p .ok{color:#3fd9a4}.ds-p .f{background:#d98b8b;color:#0a0b0d}"
+    },
+    {
+      "name": "Section Head",
+      "kind": "custom",
+      "refersTo": "headline-sub",
+      "description": "Outfit 800 caps behind an 11px slanted jade cap.",
+      "html": "<div class=\"ds-sh\"><h2>Best M+ dungeons this week</h2><p>Ranked by the biggest upgrade you can get there.</p></div>",
+      "css": ".ds-sh{font-family:Outfit,system-ui,sans-serif}.ds-sh h2{display:flex;align-items:center;gap:10px;margin:0;font-size:18px;font-weight:800;line-height:1.05;letter-spacing:-.01em;text-transform:uppercase;color:#eef1f5}.ds-sh h2::before{content:'';width:11px;height:.9em;background:#3fd9a4;clip-path:polygon(0 0,100% 0,calc(100% - 4px) 100%,0 100%)}.ds-sh p{margin:6px 0 0;font-size:13px;color:#818b98}"
+    },
+    {
+      "name": "Alert",
+      "kind": "custom",
+      "refersTo": "alert",
+      "description": "Ink-800 panel; rose border for a warning or an error.",
+      "html": "<div class=\"ds-al\"><b>Gear may be out of date</b><span>Raider.IO last read this character 2.9 days ago.</span><a>Update on Raider.IO</a></div>",
+      "css": ".ds-al{display:flex;gap:12px;align-items:center;padding:11px 16px;background:#131519;border:1px solid #d98b8b;color:#c9d0d8;font:14px Outfit,system-ui,sans-serif}.ds-al b{color:#eef1f5;font-weight:600}.ds-al a{margin-left:auto;color:#3fd9a4;font-size:13px;font-weight:600}"
+    },
+    {
+      "name": "Fold",
+      "kind": "custom",
+      "refersTo": "fold",
+      "description": "Hairline fold with drawn jade chevron.",
+      "html": "<div class=\"ds-fold\"><span class=\"c\"></span><b>Full report</b><span class=\"h\">All 53 Mythic upgrades as a sortable table</span></div>",
+      "css": ".ds-fold{display:flex;align-items:baseline;gap:12px;padding:16px 2px;border-top:1px solid #1e2228;border-bottom:1px solid #1e2228;font-family:Outfit,system-ui,sans-serif}.ds-fold .c{align-self:center;width:7px;height:7px;border-right:2px solid #3fd9a4;border-bottom:2px solid #3fd9a4;transform:rotate(-45deg)}.ds-fold b{font-size:16px;font-weight:700;color:#eef1f5}.ds-fold .h{font-size:14px;color:#818b98}"
+    }
+  ]
+}

@@ -59,6 +59,7 @@ def test_build_summary_is_public_safe_and_grouped(monkeypatch):
     assert (char["class"], char["spec"]) == ("Priest", "Holy")
     assert [r["difficulty"] for r in char["reports"]] == ["Heroic", "Mythic"]
     assert char["reports"][0]["report_id"] == "aaa"
+    assert s["raids"] == []  # no results fetched, so no raids for the boss tiles
     text = json.dumps(s)
     # the raw /simc export (bags, currencies) never goes to the public site
     assert "upgrade_currencies" not in text and "Gear from Bags" not in text
@@ -219,3 +220,59 @@ def test_uploaded_flag_is_the_only_public_upload_detail():
         ("Mythic", True),
     ]
     assert "login session" not in json.dumps(s)
+
+
+def test_raid_night_is_published_and_optional():
+    from wishlist_updater.config import RaidNight
+
+    outcomes = [cli.Outcome(SHIFTHEAL, "Mythic", simc=ADDON)]
+    started = datetime(2026, 9, 24, tzinfo=UTC)
+    night = RaidNight(days=("Wednesday",), start="20:00", end="23:00", timezone="Europe/Brussels")
+    s = build_summary(outcomes, started_at=started, fetch_results=False, raid_night=night)
+    assert s["raid_night"] == {
+        "days": ["Wednesday"],
+        "start": "20:00",
+        "end": "23:00",
+        "timezone": "Europe/Brussels",
+    }
+    assert s["schema"] == 2 and s["raids"] == []
+    assert build_summary(outcomes, started_at=started, fetch_results=False)["raid_night"] is None
+
+
+def test_add_item_info_names_upgrades_gear_and_crests(monkeypatch):
+    from wishlist_updater import summary
+    from wishlist_updater.drop_sources import ItemInfo
+
+    seen = {}
+
+    def fake_fetch(item_ids, client, raid_item_ids=None):
+        seen.update(item_ids=item_ids, raid_item_ids=raid_item_ids)
+        return ItemInfo(
+            sources={1: "Ula'tek", 2: "Altar of Fangs"},
+            slots={1: "Head", 2: "Finger"},
+            names={1: "Cowl", 2: "Ring", 10: "Old Cowl", 11: "Boots"},
+            icons={1: "inv_helm_01", 10: "inv_helm_00", 11: "inv_boot_01"},
+            raids=[{"id": 1320, "name": "The Venomous Abyss", "bosses": []}],
+        )
+
+    monkeypatch.setattr(summary, "fetch_item_info", fake_fetch)
+    chars = [
+        {
+            "gear": [{"item_id": 10, "name": None}],
+            "crest_upgrades": [{"item_id": 11, "name": "From simc"}],
+            "reports": [{"results": [{"item": 1, "percDiff": 0.5}, {"item": 2, "percDiff": 0}]}],
+        }
+    ]
+    raids = summary.add_item_info(chars, client=None)
+    assert raids[0]["name"] == "The Venomous Abyss"
+    assert seen == {"item_ids": {1, 2, 10, 11}, "raid_item_ids": {1, 2}}
+    up, zero = chars[0]["reports"][0]["results"]
+    assert (up["name"], up["icon"], up["dropSource"], up["slot"]) == (
+        "Cowl",
+        "inv_helm_01",
+        "Ula'tek",
+        "Head",
+    )
+    assert "name" not in zero and zero["dropSource"] == "Altar of Fangs"  # not an upgrade
+    assert chars[0]["gear"][0] == {"item_id": 10, "name": "Old Cowl", "icon": "inv_helm_00"}
+    assert chars[0]["crest_upgrades"][0]["name"] == "From simc"  # the export's name wins

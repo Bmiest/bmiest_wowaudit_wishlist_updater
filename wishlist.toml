@@ -23,6 +23,14 @@ upload_difficulties = ["Mythic"]
 # Team page used for keyless imports with your own login session (WOWAUDIT_SESSION).
 wowaudit_team_url = "https://wowaudit.com/guild/eu/draenor/kelderklasse/teams/main"
 
+# The guild's raid nights in local time, for the dashboard's "Tonight 20:00" countdown and
+# boss plan (public: it ends up in the run summary). Leave out to show the bosses undated.
+[raid_night]
+days = ["Wednesday", "Sunday"]
+start = "20:00"
+end = "23:00"
+timezone = "Europe/Brussels"
+
 [qe]
 raid_difficulty = ["Heroic", "Mythic"]  # user test 2026-09-22: Heroic shown next to Mythic
 mplus_level = 10

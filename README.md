@@ -94,15 +94,19 @@ uv run pytest -m live                                    # hits real sites
 ## Dashboard
 
 Every workflow run is published to https://bmiest.github.io/bmiest_wowaudit_wishlist_updater/,
-including failed and report-only runs. It shows the run history, the Heroic and Mythic reports
-with their top upgrades and the boss or dungeon each one drops from, and the gear you had
-equipped. "Power to gain" adds up the biggest upgrade in every slot (the best two rings and
-trinkets; a two-hander or a one-hander plus off-hand), per difficulty and per source filter. QE
-rates each item against your current gear, so the total is an estimate, and it's a % of your
-healing: QE has no HPS numbers. Under each gear slot it shows the best upgrade for that slot in
-the open report, and above the report what changed since the previous run (new and gone
-upgrades, gear swaps). Runs in a row that found the same are folded into one history row, by a
-digest of their results in `index.json`. The page is in English or Dutch: `?lang=en|nl`, the
+including failed and report-only runs. It opens on the next raid night (`[raid_night]` in
+`wishlist.toml`: "Tonight 20:00" with a countdown) and the raid's bosses as tiles in kill order,
+each listing what it can drop for you in the open Heroic or Mythic report; the tile with the best
+upgrade is framed in gold. Below that: the week's best M+ dungeons and where to spend crests. The
+right rail has the run status, what changed since the previous run (new and gone upgrades, gear
+swaps) and the run history; runs in a row that found the same are folded into one history row,
+by a digest of their results in `index.json`. The full report (source filters, a sortable table)
+and the gear (with the best upgrade per slot) are one fold down. "Power to gain" adds up the
+biggest upgrade in every slot (the best two rings and trinkets; a two-hander or a one-hander
+plus off-hand), per difficulty and per source filter. QE rates each item against your current
+gear, so the total is an estimate, and it's a % of your healing: QE has no HPS numbers. Boss
+heads and full boss names come from `site/bossart.js` (add a new tier's bosses there).
+The page is in English or Dutch: `?lang=en|nl`, the
 EN | NL switch in the header (remembered), else the browser language. The history lives on the
 `dashboard-data` branch, which keeps the newest 200 runs. The pipeline only records data there; `deploy-site.yml` is the one
 workflow that deploys the site.
@@ -110,7 +114,8 @@ It runs after every pipeline run, whenever `site/` changes on `main` (no pipelin
 WoWAudit upload), and on demand, and it always builds the latest `main` with the latest data.
 
 The site is public, so it only gets data that is public anyway: gear, QE report results and run
-status, plus boss and dungeon names and item slots from QE Live's public item database
+status, the raid nights, plus item names and icons, boss and dungeon names, raid kill order and
+item slots from QE Live's public item and instance databases
 ([Voulk/QuestionablyEpic](https://github.com/Voulk/QuestionablyEpic)). Your WoWAudit session,
 your wishlist and the raw `/simc` export never go there.
 
@@ -135,6 +140,6 @@ your wishlist and the raw `/simc` export never go there.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The peon in `site/assets/peon-jobs-done.*` is Blizzard
-Entertainment's Warcraft III artwork, used on a non-commercial fan page. The MIT license
-doesn't cover it.
+MIT, see [LICENSE](LICENSE). The boss heads in `site/img/boss/` are crops of Blizzard
+Entertainment's World of Warcraft renders (provenance in `site/bossart.js`), used on a
+non-commercial fan page. The MIT license doesn't cover them.

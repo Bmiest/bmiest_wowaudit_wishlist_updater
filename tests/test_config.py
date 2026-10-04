@@ -116,3 +116,35 @@ def test_upload_days(tmp_path):
         _load(tmp_path, 'upload_days = ["Wensday"]\n' + CHAR)
     with pytest.raises(ConfigError, match="upload_days"):
         _load(tmp_path, "upload_days = []\n" + CHAR)
+
+
+def test_raid_night(tmp_path):
+    config = _load(
+        tmp_path,
+        '[raid_night]\ndays = ["sunday", "Wednesday"]\nstart = "20:00"\nend = "23:00"\n'
+        'timezone = "Europe/Brussels"\n' + CHAR,
+    )
+    assert config.raid_night.as_dict() == {
+        "days": ["Wednesday", "Sunday"],
+        "start": "20:00",
+        "end": "23:00",
+        "timezone": "Europe/Brussels",
+    }
+    assert _load(tmp_path, CHAR).raid_night is None
+    assert Config.load(pathlib.Path(__file__).parent.parent / "wishlist.toml").raid_night
+
+
+@pytest.mark.parametrize(
+    "table, match",
+    [
+        ('days = ["Wensday"]\nstart = "20:00"\nend = "23:00"', "days"),
+        ('days = []\nstart = "20:00"\nend = "23:00"', "days"),
+        ('days = ["Sunday"]\nstart = "8pm"\nend = "23:00"', "start"),
+        ('days = ["Sunday"]\nstart = "20:00"\nend = "24:00"', "end"),
+        ('days = ["Sunday"]\nstart = "20:00"\nend = "23:00"\ntimezone = "Mars/Olympus"', "zone"),
+        ('days = ["Sunday"]\nstart = "20:00"\nend = "23:00"\nstrat = "x"', "strat"),
+    ],
+)
+def test_raid_night_validation(tmp_path, table, match):
+    with pytest.raises(ConfigError, match=match):
+        _load(tmp_path, f"[raid_night]\n{table}\n" + CHAR)
