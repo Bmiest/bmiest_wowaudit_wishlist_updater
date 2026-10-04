@@ -18,7 +18,6 @@ colors:
   jade-ghost: "rgba(63,217,164,.13)"
   gold: "#d8b263"
   rose: "#d98b8b"
-  live-red: "#c93339"
   track: "rgba(238,241,245,.08)"
 typography:
   title:
@@ -126,8 +125,8 @@ components:
     padding: "0 16px"
     height: "40px"
   bug-status-fail:
-    backgroundColor: "{colors.live-red}"
-    textColor: "{colors.paper}"
+    backgroundColor: "{colors.rose}"
+    textColor: "{colors.ink-900}"
     typography: "{typography.control}"
     rounded: "{rounded.none}"
     padding: "0 16px"
@@ -181,8 +180,8 @@ components:
     backgroundColor: "{colors.ink-750}"
     textColor: "{colors.jade}"
   tag-fail:
-    backgroundColor: "{colors.live-red}"
-    textColor: "{colors.paper}"
+    backgroundColor: "{colors.rose}"
+    textColor: "{colors.ink-900}"
   boss-tile:
     backgroundColor: "{colors.ink-850}"
     textColor: "{colors.paper}"
@@ -244,7 +243,7 @@ components:
      Family record: Bmiest/bmiest-design DESIGN.md. Sibling: twitch-overlay-v2 DESIGN.md.
      Scope tags: [family] = the shared v2 language, should match the family DESIGN.md;
      [wishlist] = this product only. site/tokens.css is a byte copy of an earlier overlay tokens.css;
-     --live-red and --track live on :root in site/style.css. -->
+     --track lives on :root in site/style.css. -->
 
 ## Overview
 
@@ -252,20 +251,20 @@ components:
 
 What matters this week comes first: the next raid night and what each of its bosses can drop. The page opens on a broadcast bug bar (bmiest, the run status, when it ran, GitHub, EN|NL), a title with the character line, then "Tonight 20:00" with its countdown, Heroic|Mythic tabs and the raid's bosses as tiles in kill order, each listing its upgrades; the tile holding the best upgrade is framed in gold. The week's best M+ dungeons follow as ranked ribbons beside the crests worth spending, and the full report, the gear and the how-it-works notes sit folded below. A right rail carries the run status, the changes since the previous run and the run history.
 
-It speaks the family's v2 language in operate mode: the world lends type, palette, density and its slanted marks, while tabs, filters, tables and links stay standard controls. Colour is a state: jade is OK and active, gold is the single best upgrade, red is a failed run, rose is a warning.
+It speaks the family's v2 language in operate mode: the world lends type, palette, density and its slanted marks, while tabs, filters, tables and links stay standard controls. Colour is a state: jade is OK and active, gold is the single best upgrade, rose is a failed run or a warning. Red is the family's on-air colour and the dashboard is never live, so it carries none.
 
 Confirmed rejection (contract thesis): the generic KPI-cards-over-a-table dashboard. Every function of the old page stays, one fold away.
 
 **Key Characteristics:**
 - [family] Flat ink scale, Outfit + JetBrains Mono, from tokens.css.
 - [family] Right-edge slant on ribbons, pills, tags, bars, boss heads and section caps; flush square blocks for the bug, the language switch and the tabs.
-- [wishlist] Colour as run state: jade = OK/active, gold = best upgrade, red = failed run, rose = warning or stale.
+- [family] Colour as run state: jade = OK/active, gold = best upgrade, rose = failed, warning or stale; no red (red = on air).
 - [wishlist] The raid night as a grid of boss tiles, the signature.
 - [wishlist] Operate mode: standard controls dressed in the world's type and palette.
 
 ## Colors
 
-The family's near-black ink ramp with jade as the healthy state, one gold for the best upgrade, rose for warnings and a darkened red for failure.
+The family's near-black ink ramp with jade as the healthy state, one gold for the best upgrade and rose for failures and warnings.
 
 ### Primary
 - **Mistweaver Jade** (jade): [family] OK and active. The OK status block, the active tab, active filter pills and language block, the brand mark in the bug, section-head caps, upgrade percentages, the "Tonight" time, meter fills on the M+ list and crests, links, the fold chevron, the "no changes" check, sort arrows on the sorted column, focus rings (2px outline, 3px offset). Its ghost (jade-ghost) only for link underlines and text selection.
@@ -275,8 +274,7 @@ The family's near-black ink ramp with jade as the healthy state, one gold for th
 - **Podium Gold** (gold): [wishlist] the single best upgrade in view: the boss tile that holds it (2px gold frame), its item and percentage, the top-ranked dungeon ribbon (gold outline and rank block, ink text, gold meter), the best row in the full report.
 
 ### Tertiary
-- **Failed Red** (live-red): [wishlist value, diverges from family] a failed run: the FAILED status block in the bug, the FAILED tag in history, the run-status panel's border when failed, the error alert's border and icon. Value is the family red darkened so paper text on it reaches 4.6:1 (the family's value gives about 3.4:1); as a border or icon on ink it holds 3.5:1.
-- **Faded Rose** (rose): [wishlist] warnings and staleness: the Raider.IO staleness alert border and icon, a stale "as of" date on the character card, the date of a failed run in history, a failed report link.
+- **Faded Rose** (rose): [family] a failed run, warnings and staleness: the FAILED status block in the bug and the FAILED tag in history (rose with ink-900 text), the run-status panel's border when failed, the error and Raider.IO staleness alerts' border and icon, a stale "as of" date on the character card, the date of a failed run in history, a failed report link. The alert's title and icon tell an error from a warning, not the colour.
 
 ### Neutral
 - **Raid Night Black** (ink-900): page ground, the bug's brand block, inactive language blocks, ink text on jade and gold.
@@ -295,7 +293,7 @@ The family's near-black ink ramp with jade as the healthy state, one gold for th
 ### Named Rules
 **The Gold Is the Best Upgrade Rule.** [wishlist] Gold marks the one best upgrade in a view (tile, dungeon, table row) and nothing else: not a hover, not a tag colour, not a heading.
 
-**The Red Means a Failed Run Rule.** [wishlist, diverges from family "Red Means On Air"] Red appears only where a run failed or errored. The dashboard is never live, so it carries no LIVE block; its red is a state, not a broadcast mark.
+**The Failure Is Rose Rule.** [family] A failed run or an error is rose, like the race site's errors and late data, never red: red means on air, and the dashboard is never live.
 
 **The Jade Is Healthy Rule.** [wishlist] Jade is OK, active and gain; a warning is rose, never jade or gold.
 
@@ -350,7 +348,7 @@ The grid is a main column and a 340px right rail, 40px apart; under 1180px the r
 ## Components
 
 ### Broadcast bug [family form, wishlist content]
-Flush square blocks at 40px (34px under 900px): "bmiest" on ink-900 with the drawn broadcast mark in jade, the run status (jade with a check and ink text when OK, Failed Red with paper text when failed, ink-750 while unknown), and "Updated 1 day ago" on ink-750. GitHub link and EN|NL sit at the bar's right end.
+Flush square blocks at 40px (34px under 900px): "bmiest" on ink-900 with the drawn broadcast mark in jade, the run status (jade with a check and ink text when OK, rose with ink text when failed, ink-750 while unknown), and "Updated 1 day ago" on ink-750. GitHub link and EN|NL sit at the bar's right end.
 
 ### Language switch [family]
 EN | NL as two flush blocks at the bug's height in control type; the active one solid jade with ink text, the other ink-900 with ink-300 text (paper on hover).
@@ -371,13 +369,13 @@ The overlay's ribbon at 44px: a 1px slanted ink-600 outline around an ink-800 bo
 A 10px slanted bar: track paper at 8%, fill jade, gold on the best dungeon.
 
 ### Pills and tags [family]
-Pills: slanted ink-750 chips in label type; filter pills turn solid jade with ink text when on and carry a count; the action pill ("Show all 24") has jade text. Tags: smaller slanted chips for OK (jade text), Failed (Failed Red with paper text) and muted states.
+Pills: slanted ink-750 chips in label type; filter pills turn solid jade with ink text when on and carry a count; the action pill ("Show all 24") has jade text. Tags: smaller slanted chips for OK (jade text), Failed (rose with ink text) and muted states.
 
 ### Section head [family]
 Headline-sub type behind a slanted jade cap (11px wide, 0.9em tall), then a one-line 13px ink-300 caption.
 
 ### Panels [family]
-Square ink-800 panels with a 1px ink-700 border: alerts (rose border for a warning, Failed Red for an error, drawn warning icon, bold paper title, action link at the end), the run-status panel (Failed Red border when failed), crest cards (36px icon, item, meta, meter), the character card (centred name, spec, mono item level, "as of" in rose when stale). The changes panel is the same on ink-850.
+Square ink-800 panels with a 1px ink-700 border: alerts (rose border for a warning or an error, drawn warning icon, bold paper title, action link at the end), the run-status panel (rose border when failed), crest cards (36px icon, item, meta, meter), the character card (centred name, spec, mono item level, "as of" in rose when stale). The changes panel is the same on ink-850.
 
 ### Run history [wishlist]
 Rows between 1px ink-700 rules: date and time in mono, the trigger in ink-300, the status tag at the end, the Heroic/Mythic report links below (jade when updated, rose when failed), GitHub at the right. Hover turns the row ink-850; the row being viewed is ink-800 with a 1px jade-deep inset ring. Runs with identical results collapse behind a jade "+N runs" fold.
@@ -388,8 +386,8 @@ Full-width folds between 1px ink-700 hairlines: the drawn jade chevron, the fold
 ## Do's and Don'ts
 
 ### Do:
-- **Do** take colours, fonts and spacing from tokens.css and the two `:root` additions in style.css.
-- **Do** keep jade for OK, active and gain; gold for the single best upgrade; red for a failed run; rose for warnings and staleness.
+- **Do** take colours, fonts and spacing from tokens.css and the `--track` addition on `:root` in style.css.
+- **Do** keep jade for OK, active and gain; gold for the single best upgrade; rose for a failed run, warnings and staleness; no red.
 - **Do** show the next raid night first, its bosses in kill order, every boss present even without upgrades.
 - **Do** keep tabs, filters, tables and links as standard, accessible controls; the world only dresses them.
 - **Do** slant the trailing edge of ribbons, pills, tags, meters, boss heads and caps; keep the bug, the language switch and the tabs flush and square.
@@ -402,5 +400,5 @@ Full-width folds between 1px ink-700 hairlines: the drawn jade chevron, the fold
 - **Don't** use text glyphs (★, ✓, ▸, emoji) as icons or disclosure marks; icons are drawn SVG.
 - **Don't** add drop shadows, rounded cards, gradients or blur.
 - **Don't** put a small caps label above a heading; rail and raid-group labels are the headings themselves.
-- **Don't** use gold for more than one best in a view, or red for anything but a failure.
+- **Don't** use gold for more than one best in a view, or red anywhere: red is the family's on-air colour.
 - **Don't** lead with KPI cards over a table; the full report stays one fold away.

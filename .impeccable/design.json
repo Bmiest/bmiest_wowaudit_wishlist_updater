@@ -18,7 +18,7 @@
             "b4fa0af",
             "578ba26"
           ],
-          "change": "Dashboard rebuilt in v2 as a raid-night plan (mock C). --live-red darkened to #c93339 and used for failed runs; --track added; both on :root in style.css."
+          "change": "Dashboard rebuilt in v2 as a raid-night plan (mock C). --track added on :root in style.css; failed runs are rose (red is the family on-air colour)."
         }
       ]
     },
@@ -57,17 +57,11 @@
         "scope": "wishlist",
         "purpose": "The single best upgrade in view: tile frame, item, top dungeon, table row."
       },
-      "live-red": {
-        "role": "tertiary",
-        "displayName": "Failed Red",
-        "scope": "wishlist",
-        "purpose": "A failed run or error: FAILED block and tag, failed status panel, error alert. Family red #e5484d darkened to #c93339 (paper on it 4.62:1 vs 3.45:1). Diverges from family: family reserves red for LIVE."
-      },
       "rose": {
         "role": "tertiary",
         "displayName": "Faded Rose",
-        "scope": "wishlist",
-        "purpose": "Warnings and staleness: stale alert, stale as-of date, failed run date and report link."
+        "scope": "family",
+        "purpose": "A failed run or error (FAILED block and tag with ink-900 text, failed status panel, error alert), warnings and staleness. Red stays the family on-air colour; the dashboard is never live."
       },
       "paper": {
         "role": "neutral",
@@ -256,14 +250,6 @@
     },
     "familyDrift": [
       {
-        "name": "live-red value",
-        "note": "#c93339 here vs family #e5484d; resolves the family's open LIVE-pill contrast decision (4.62:1)."
-      },
-      {
-        "name": "red meaning",
-        "note": "Red = failed run here; family rule reserves red for LIVE (on air)."
-      },
-      {
         "name": "tokens.css copy",
         "note": "Byte copy of the pre-showcase overlay tokens.css: lacks the overlay's @import (Outfit 300-800) and --live-red."
       }
@@ -288,7 +274,7 @@
       "refersTo": "bug-brand",
       "description": "Flush blocks: brand, run status (OK jade / Failed red), updated.",
       "html": "<div class=\"ds-bug\"><span class=\"b\">bmiest</span><span class=\"s\">Run OK</span><span class=\"u\">Updated 1 day ago</span></div><div class=\"ds-bug\" style=\"margin-top:8px\"><span class=\"b\">bmiest</span><span class=\"s f\">Run failed</span><span class=\"u\">Updated 3 h ago</span></div>",
-      "css": ".ds-bug{display:flex;height:40px;font-family:Outfit,system-ui,sans-serif}.ds-bug>*{display:flex;align-items:center;padding:0 16px}.ds-bug .b{background:#0a0b0d;color:#eef1f5;font-size:14px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.ds-bug .s{background:#3fd9a4;color:#0a0b0d;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.ds-bug .s.f{background:#c93339;color:#eef1f5}.ds-bug .u{background:#171a1f;color:#a8b1bc;font-size:13px;font-weight:500}"
+      "css": ".ds-bug{display:flex;height:40px;font-family:Outfit,system-ui,sans-serif}.ds-bug>*{display:flex;align-items:center;padding:0 16px}.ds-bug .b{background:#0a0b0d;color:#eef1f5;font-size:14px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.ds-bug .s{background:#3fd9a4;color:#0a0b0d;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.ds-bug .s.f{background:#d98b8b;color:#0a0b0d}.ds-bug .u{background:#171a1f;color:#a8b1bc;font-size:13px;font-weight:500}"
     },
     {
       "name": "Tabs",
@@ -320,7 +306,7 @@
       "refersTo": "pill",
       "description": "Slanted chips: filter on/off, OK and Failed tags.",
       "html": "<div class=\"ds-p\"><span class=\"p on\">All 53</span><span class=\"p\">Weapons 4</span><span class=\"t ok\">OK</span><span class=\"t f\">Failed</span></div>",
-      "css": ".ds-p{display:flex;gap:6px;align-items:center;font-family:Outfit,system-ui,sans-serif;text-transform:uppercase;font-weight:700}.ds-p .p{padding:7px 16px 7px 12px;font-size:11px;letter-spacing:.12em;background:#171a1f;color:#a8b1bc;clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}.ds-p .p.on{background:#3fd9a4;color:#0a0b0d}.ds-p .t{padding:3px 11px 3px 8px;font-size:11px;letter-spacing:.14em;background:#171a1f;clip-path:polygon(0 0,100% 0,calc(100% - 5px) 100%,0 100%)}.ds-p .ok{color:#3fd9a4}.ds-p .f{background:#c93339;color:#eef1f5}"
+      "css": ".ds-p{display:flex;gap:6px;align-items:center;font-family:Outfit,system-ui,sans-serif;text-transform:uppercase;font-weight:700}.ds-p .p{padding:7px 16px 7px 12px;font-size:11px;letter-spacing:.12em;background:#171a1f;color:#a8b1bc;clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,0 100%)}.ds-p .p.on{background:#3fd9a4;color:#0a0b0d}.ds-p .t{padding:3px 11px 3px 8px;font-size:11px;letter-spacing:.14em;background:#171a1f;clip-path:polygon(0 0,100% 0,calc(100% - 5px) 100%,0 100%)}.ds-p .ok{color:#3fd9a4}.ds-p .f{background:#d98b8b;color:#0a0b0d}"
     },
     {
       "name": "Section Head",
@@ -334,7 +320,7 @@
       "name": "Alert",
       "kind": "custom",
       "refersTo": "alert",
-      "description": "Ink-800 panel; rose border for warn, red for error.",
+      "description": "Ink-800 panel; rose border for a warning or an error.",
       "html": "<div class=\"ds-al\"><b>Gear may be out of date</b><span>Raider.IO last read this character 2.9 days ago.</span><a>Update on Raider.IO</a></div>",
       "css": ".ds-al{display:flex;gap:12px;align-items:center;padding:11px 16px;background:#131519;border:1px solid #d98b8b;color:#c9d0d8;font:14px Outfit,system-ui,sans-serif}.ds-al b{color:#eef1f5;font-weight:600}.ds-al a{margin-left:auto;color:#3fd9a4;font-size:13px;font-weight:600}"
     },
