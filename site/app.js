@@ -738,7 +738,8 @@ function topBar() {
           h("span", { text: latest.ok ? t("runOk") : t("runFailed") }),
         ])
       : h("span", { className: "bug__status", text: t("noRuns") }),
-    when ? h("span", { className: "bug__upd", text: t("updated", { when: relativeTime(when) }), attrs: { title: absoluteTime(when) } }) : null,
+    // "Updated" is its own span so a phone can drop it and keep just the time.
+    when ? h("span", { className: "bug__upd", attrs: { title: absoluteTime(when) } }, [h("span", { className: "bug__upd-pre", text: `${t("updated")} ` }), h("span", { text: relativeTime(when) })]) : null,
   ]);
   const gh = latest ? isGithubUrl(latest.url) : null;
   const langSwitch = h("div", { className: "lang-switch", attrs: { role: "group", "aria-label": t("langLabel") } },
@@ -890,7 +891,8 @@ function raidNightWhen(night) {
   const cfg = currentRaidNight();
   if (!night) return h("div", { className: "rn__when" }, [h("h2", { className: "rn__date", text: t("raidBosses"), attrs: { id: "rnH" } })]);
   const fmt = (o) => night.start.toLocaleString(locale(), { timeZone: cfg.tz, ...o });
-  const dayWord = night.live || night.dayOffset <= 0 ? t("tonight") : capitalize(fmt({ weekday: "long" }));
+  const tonight = night.live || night.dayOffset <= 0;
+  const dayWord = tonight ? t("tonight") : capitalize(fmt({ weekday: "long" }));
   const range = `${fmt({ hour: "2-digit", minute: "2-digit" })}–${night.end.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", timeZone: cfg.tz })}`;
   return h("div", { className: "rn__when" }, [
     h("h2", { className: "rn__date", attrs: { id: "rnH" } }, [
@@ -900,7 +902,8 @@ function raidNightWhen(night) {
       h("span", { className: "rn__time", text: fmt({ hour: "2-digit", minute: "2-digit" }) }),
     ]),
     h("p", { className: "rn__in" }, [
-      h("span", { text: `${capitalize(fmt({ weekday: "long", day: "numeric", month: "long" }))} · ` }),
+      // The heading already names the weekday on other days; "Tonight" doesn't.
+      h("span", { text: `${capitalize(fmt(tonight ? { weekday: "long", day: "numeric", month: "long" } : { day: "numeric", month: "long" }))} · ` }),
       night.live
         ? h("b", { className: "mono", text: range, attrs: { "data-until": night.end.toISOString() } })
         : h("b", { className: "mono", text: t("inTime", { t: untilText(night.start - Date.now()) }), attrs: { "data-until": night.start.toISOString() } }),

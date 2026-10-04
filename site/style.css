@@ -34,6 +34,7 @@ button { font: inherit; color: inherit; }
 .bug__status.is-ok { background: var(--jade); color: var(--ink-900); }
 .bug__status.is-fail { background: var(--live-red); color: var(--paper); }
 .bug__upd { padding: 0 16px; background: var(--ink-750); color: var(--ink-200); font-size: 13px; font-weight: 500; }
+.bug > .bug__upd { gap: 0; white-space: pre; }
 .bar__end { display: flex; align-items: center; gap: 16px; }
 .ext { display: inline-flex; align-items: center; gap: 5px; }
 .ext .ico { width: 11px; height: 11px; }
@@ -369,6 +370,7 @@ th[aria-sort] .sorter .ico { color: var(--jade); }
   .bug__brand { padding: 0 10px; }
   .bug__status, .bug__upd { padding: 0 10px; font-size: 12px; }
   .bug__upd { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  .bug__upd-pre { display: none; }
   .alert { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; }
   .alert__act { grid-column: 2; }
   .rnb { grid-template-columns: minmax(0, 1fr); }
