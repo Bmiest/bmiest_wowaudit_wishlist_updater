@@ -1067,13 +1067,16 @@ function bonusRollSection() {
         h("b", { text: sourceName({ dropLoc: p.dropLoc, dropSource: p.name }, raids) }),
         h("span", {}, [
           h("span", { text: `${p.dropLoc === "Raid" ? "Raid" : "M+"} ${p.level ?? "?"} · ` }),
-          h("span", { className: "mono", text: `${p.upgrades}/${p.pool}`, attrs: { "aria-hidden": "true" } }),
-          h("span", { className: "visually-hidden", text: t("bonusChance", { up: p.upgrades, n: p.pool }) }),
-          h("span", { text: " · " }),
           p.best ? itemLink(p.best.item, p.best.level, { name: p.best.name }) : null,
         ]),
       ]),
     ])])]),
+    // The chance on its own: a boss with many items you can loot rarely gives the one you want.
+    h("span", { className: "br__chance", attrs: { title: t("bonusChance", { up: p.upgrades, n: p.pool }) } }, [
+      h("b", { className: "mono", text: fmtShare(p.upgrades / p.pool), attrs: { "aria-hidden": "true" } }),
+      h("span", { text: t("bonusChanceShort", { up: p.upgrades, n: p.pool }), attrs: { "aria-hidden": "true" } }),
+      h("span", { className: "visually-hidden", text: t("bonusChance", { up: p.upgrades, n: p.pool }) }),
+    ]),
     h("span", { className: "dg__gain" }, [
       meter(p.avg / max, "jade"),
       h("span", { className: "pct mono", text: fmtPct(p.avg), attrs: { title: t("bonusAvg") } }),
@@ -1510,7 +1513,7 @@ function render(app) {
     const main = h("div", { className: "main" }, [raidNightSection(all)]);
     const rep = reportFor(S.tab);
     if (rep && !rep.error) {
-      main.appendChild(h("div", { className: "two" }, [dungeonWeek(all), bonusRollSection()]));
+      main.appendChild(h("div", { className: "two two--even" }, [dungeonWeek(all), bonusRollSection()]));
       main.appendChild(h("div", { className: "two" }, [crestSection()]));
       main.appendChild(folds(all));
     } else if (availableTabs().length) {

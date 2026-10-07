@@ -161,6 +161,7 @@ a.item:hover { color: var(--jade); text-decoration: underline; text-decoration-c
 .main { display: grid; gap: 40px; min-width: 0; }
 .rail { display: grid; gap: 28px; min-width: 0; }
 .two { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.two--even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .empty { display: grid; justify-items: start; gap: 10px; padding: 22px 18px; border: 1px dashed var(--ink-600); color: var(--paper-dim); }
 
 /* ---- the raid night: boss tiles in kill order (the signature) ------------------------------- */
@@ -210,7 +211,10 @@ a.item:hover { color: var(--jade); text-decoration: underline; text-decoration-c
 .dg__gain { display: grid; grid-template-columns: minmax(0, 1fr) 54px; gap: 10px; align-items: center; }
 .dg__gain .pct { text-align: right; }
 /* Bonus roll: shares the column with the dungeons, so a narrower bar leaves the boss name room. */
-.dg--tight .dg__row { grid-template-columns: minmax(0, 1fr) 112px; }
+.dg--tight .dg__row { grid-template-columns: minmax(0, 1fr) 56px 96px; }
+.br__chance { display: grid; line-height: 1.15; text-align: right; }
+.br__chance b { font-size: 15px; font-weight: 700; color: var(--paper); }
+.br__chance > span { font-size: 12px; color: var(--ink-300); white-space: nowrap; }
 
 /* ---- crests ----------------------------------------------------------------------------------- */
 .crests { display: grid; gap: 12px; justify-items: stretch; }
@@ -347,7 +351,10 @@ th[aria-sort] .sorter .ico { color: var(--jade); }
 @media (max-width: 720px) {
   .ph__title { font-size: 28px; }
   .controls .report-link { margin-left: 0; }
-  .dg__row, .dg--tight .dg__row { grid-template-columns: minmax(0, 1fr); }
+  .dg__row { grid-template-columns: minmax(0, 1fr); }
+  .dg--tight .dg__row { grid-template-columns: 64px minmax(0, 1fr); }
+  .dg--tight .rib { grid-column: 1 / -1; }
+  .dg--tight .br__chance { text-align: left; }
   .rn__bosses { grid-template-columns: minmax(0, 1fr); }
   .rnb { grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: auto; }
   .rnb__top { grid-template-columns: 40px minmax(0, 1fr); align-content: start; }
