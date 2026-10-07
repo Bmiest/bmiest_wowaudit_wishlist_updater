@@ -260,13 +260,21 @@ def test_add_item_info_names_upgrades_gear_and_crests(monkeypatch):
         {
             "gear": [{"item_id": 10, "name": None}],
             "crest_upgrades": [{"item_id": 11, "name": "From simc"}],
-            "reports": [{"results": [{"item": 1, "percDiff": 0.5}, {"item": 2, "percDiff": 0}]}],
+            "reports": [
+                {
+                    "results": [
+                        {"item": 1, "percDiff": 0.5},
+                        {"item": 2, "percDiff": 0},
+                        {"item": 2, "percDiff": 0, "dropType": "bonus"},
+                    ]
+                }
+            ],
         }
     ]
     raids = summary.add_item_info(chars, client=None)
     assert raids[0]["name"] == "The Venomous Abyss"
     assert seen == {"item_ids": {1, 2, 10, 11}, "raid_item_ids": {1, 2}}
-    up, zero = chars[0]["reports"][0]["results"]
+    up, zero, pool = chars[0]["reports"][0]["results"]
     assert (up["name"], up["icon"], up["dropSource"], up["slot"]) == (
         "Cowl",
         "inv_helm_01",
@@ -274,5 +282,6 @@ def test_add_item_info_names_upgrades_gear_and_crests(monkeypatch):
         "Head",
     )
     assert "name" not in zero and zero["dropSource"] == "Altar of Fangs"  # not an upgrade
+    assert pool["name"] == "Ring"  # but in a bonus-roll pool, which the dashboard lists whole
     assert chars[0]["gear"][0] == {"item_id": 10, "name": "Old Cowl", "icon": "inv_helm_00"}
     assert chars[0]["crest_upgrades"][0]["name"] == "From simc"  # the export's name wins

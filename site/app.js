@@ -271,7 +271,7 @@ function computePowerToGain(upgrades) {
  * level a bonus roll gives, at max upgrade). A roll gives one random item of the loot pool, so
  * like QE's own "Bonus roll chance": chance = share of the pool that is an upgrade, avg = mean
  * gain per roll with the misses counted as 0. An item shared by two bosses ("A / B") is in both
- * pools. Best average first, then chance.
+ * pools. Best average first, then chance. `items` is the whole pool, biggest gain first.
  */
 function computeBonusRolls(results) {
   if (!Array.isArray(results)) return [];
@@ -298,6 +298,7 @@ function computeBonusRolls(results) {
       avg: rows.reduce((s, r) => s + Math.max(0, r.percDiff), 0) / rows.length,
       level: Math.max(...rows.map((r) => numOrNull(r.level) || 0)) || null,
       best: best.percDiff > 0 ? best : null,
+      items: rows.sort((a, b) => b.percDiff - a.percDiff),
     };
   }).sort((a, b) => b.avg - a.avg || b.upgrades / b.pool - a.upgrades / a.pool);
 }
@@ -1060,6 +1061,7 @@ function bonusRollSection() {
   }
   const raids = currentRaids();
   const max = rows[0].avg;
+  const total = computeBonusRolls(r.results).length;
   sec.appendChild(h("ol", { className: "dg dg--tight" }, rows.map((p, i) => h("li", { className: "dg__row" }, [
     h("div", { className: "rib" }, [h("div", { className: "rib__bar" }, [h("div", { className: "rib__in" }, [
       h("span", { className: "rib__acc", text: String(i + 1) }),
@@ -1083,7 +1085,51 @@ function bonusRollSection() {
       h("span", { className: "visually-hidden", text: ` ${t("bonusAvg")}` }),
     ]),
   ]))));
+  sec.appendChild(h("button", {
+    className: "rnb__more br__all",
+    text: t("bonusAll", { n: total }),
+    attrs: { type: "button" },
+    on: {
+      click: () => {
+        S.folds.add("bonus");
+        rerender();
+        const fold = document.getElementById("fold-bonus");
+        if (fold) fold.scrollIntoView({ block: "start" });
+      },
+    },
+  }));
   return sec;
+}
+
+/** Every boss and dungeon with its whole loot pool: each item's gain and its 1-in-n chance. */
+function bonusPoolTable(pools) {
+  const raids = currentRaids();
+  const share = (up, n) => `${fmtShare(up / n)} · ${up}/${n}`;
+  const body = h("tbody", {});
+  pools.forEach((p, i) => {
+    const src = { dropLoc: p.dropLoc, dropSource: p.name };
+    body.appendChild(h("tr", { className: "br-grp" }, [
+      h("td", { className: "num mono", text: String(i + 1) }),
+      h("th", { attrs: { scope: "rowgroup" } }, [h("span", { className: "gt__it" }, [
+        sourceTile(src, raids, "boss-thumb--sm"),
+        h("span", {}, [h("span", { className: "br-grp__name", text: sourceName(src, raids) }), h("span", { className: "gt__src", text: ` · ${p.dropLoc === "Raid" ? "Raid" : "M+"} ${p.level ?? "?"}` })]),
+      ])]),
+      h("td", { className: "gt__slot", text: t("bonusPoolItems", { n: p.pool }) }),
+      h("td", { className: "num mono", text: share(p.upgrades, p.pool) }),
+      h("td", { className: "num" }, [p.avg > 0 ? h("span", { className: "pct mono", text: fmtPct(p.avg), attrs: { title: t("bonusAvg") } }) : h("span", { className: "muted", text: "–" })]),
+    ]));
+    p.items.forEach((u) => body.appendChild(h("tr", { className: `br-it${u.percDiff > 0 ? "" : " is-miss"}` }, [
+      h("td", {}),
+      h("td", {}, [h("span", { className: "gt__it" }, [itemIcon(u.item, u.icon), itemLink(u.item, u.level, { name: u.name })])]),
+      h("td", { className: "gt__slot", text: qeSlotLabel(u.slot) }),
+      h("td", { className: "num mono", text: share(1, p.pool) }),
+      h("td", { className: "num" }, [u.percDiff > 0 ? h("span", { className: "pct mono", text: fmtPct(u.percDiff) }) : h("span", { className: "muted", text: t("bonusMiss") })]),
+    ])));
+  });
+  const head = h("tr", {}, [["#", true], [t("colBonusSource"), false], [t("slot"), false], [t("colChance"), true], [t("gain"), true]]
+    .map(([label, num]) => h("th", { className: num ? "num" : "", text: label, attrs: { scope: "col" } })));
+  return h("div", { className: "table-wrap", attrs: { tabindex: "0", role: "region", "aria-label": t("bonusAllFold") } },
+    [h("table", { className: "gt gt--bonus" }, [h("thead", {}, [head]), body])]);
 }
 
 /** Crest rows: item, track rank -> max, item levels, slanted bar. */
@@ -1253,7 +1299,7 @@ function gearTable() {
 }
 
 function foldSection(id, title, hint, bodyKids) {
-  const d = h("details", { className: "fold-sec", attrs: { open: S.folds.has(id) } }, [
+  const d = h("details", { className: "fold-sec", attrs: { open: S.folds.has(id), id: `fold-${id}` } }, [
     h("summary", { className: "disclose" }, [h("span", { className: "fold__title", text: title }), h("span", { className: "fold__hint", text: hint })]),
     h("div", { className: "fold-sec__body" }, bodyKids),
   ]);
@@ -1280,6 +1326,14 @@ function folds(all) {
       reportTable(all),
     ]),
   ];
+  const rep = reportFor(S.tab);
+  const pools = computeBonusRolls(rep && !rep.error ? rep.results : null);
+  if (pools.length) {
+    kids.push(foldSection("bonus", t("bonusAllFold"), t("bonusAllHint", { n: pools.length, diff: S.tab }), [
+      h("p", { className: "sh__cap", text: t("bonusHow") }),
+      bonusPoolTable(pools),
+    ]));
+  }
   if (Array.isArray(char().gear) && char().gear.length) {
     kids.push(foldSection("gear", t("gearFold"), t("gearFoldHint"), [h("div", { className: "gear" }, [gearId(), gearTable()])]));
   }
