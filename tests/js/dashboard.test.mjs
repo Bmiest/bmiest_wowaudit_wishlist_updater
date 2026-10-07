@@ -72,6 +72,27 @@ test("computeUpgrades keeps one row per item, the max-upgrade row first, upgrade
   assert.deepEqual(rows.map((r) => [r.item, r.percDiff]), [[2, 0.9], [1, 0.4]]);
 });
 
+test("computeBonusRolls averages a roll over the whole pool, misses as 0, shared items in both", () => {
+  const js = load();
+  const rows = js(`computeBonusRolls([
+    { item: 1, percDiff: 1.5, dropType: "bonus", dropLoc: "Raid", dropSource: "Ula'tek", level: 344 },
+    { item: 2, percDiff: 0, dropType: "bonus", dropLoc: "Raid", dropSource: "Ula'tek", level: 344 },
+    { item: 2, percDiff: 0.3, dropType: "bonus", dropLoc: "Raid", dropSource: "Ula'tek", level: 344 },
+    { item: 1, percDiff: 9, dropType: "max", dropLoc: "Raid", dropSource: "Ula'tek" },
+    { item: 3, percDiff: 0.6, dropType: "bonus", dropLoc: "Raid", dropSource: "Nek'zali / Vashnik", level: 334 },
+    { item: 4, percDiff: -0.2, dropType: "bonus", dropLoc: "Raid", dropSource: "Vashnik", level: 334 },
+    { item: 5, percDiff: 0.2, dropType: "bonus", dropLoc: "Dungeon", dropSource: "Murder Row", level: 334 },
+    { item: 6, percDiff: 0.9, dropType: "bonus", dropLoc: "Delves", dropSource: "Delves" },
+    { item: 7, percDiff: "1", dropType: "bonus", dropLoc: "Raid", dropSource: "Ula'tek" }])`);
+  assert.deepEqual(rows.map((p) => [p.name, p.dropLoc, p.pool, p.upgrades, Number(p.avg.toFixed(3)), p.level, p.best && p.best.item]), [
+    ["Ula'tek", "Raid", 2, 2, 0.9, 344, 1],
+    ["Nek'zali", "Raid", 1, 1, 0.6, 334, 3],
+    ["Vashnik", "Raid", 2, 1, 0.3, 334, 3],
+    ["Murder Row", "Dungeon", 1, 1, 0.2, 334, 5],
+  ]);
+  assert.deepEqual(js("computeBonusRolls(null)"), []);
+});
+
 const NIGHT = 'parseRaidNight({ days: ["Wednesday", "Sunday"], start: "20:00", end: "23:00", timezone: "Europe/Brussels" })';
 const at = (js, iso) => js(`(() => { const n = nextRaidNight(${NIGHT}, new Date("${iso}")); return n && { start: n.start.toISOString(), end: n.end.toISOString(), live: n.live, dayOffset: n.dayOffset }; })()`);
 

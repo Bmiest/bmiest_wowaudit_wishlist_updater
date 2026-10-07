@@ -209,6 +209,8 @@ a.item:hover { color: var(--jade); text-decoration: underline; text-decoration-c
 .dg__name .item { color: var(--paper-dim); }
 .dg__gain { display: grid; grid-template-columns: minmax(0, 1fr) 54px; gap: 10px; align-items: center; }
 .dg__gain .pct { text-align: right; }
+/* Bonus roll: shares the column with the dungeons, so a narrower bar leaves the boss name room. */
+.dg--tight .dg__row { grid-template-columns: minmax(0, 1fr) 112px; }
 
 /* ---- crests ----------------------------------------------------------------------------------- */
 .crests { display: grid; gap: 12px; justify-items: stretch; }
@@ -345,7 +347,7 @@ th[aria-sort] .sorter .ico { color: var(--jade); }
 @media (max-width: 720px) {
   .ph__title { font-size: 28px; }
   .controls .report-link { margin-left: 0; }
-  .dg__row { grid-template-columns: minmax(0, 1fr); }
+  .dg__row, .dg--tight .dg__row { grid-template-columns: minmax(0, 1fr); }
   .rn__bosses { grid-template-columns: minmax(0, 1fr); }
   .rnb { grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: auto; }
   .rnb__top { grid-template-columns: 40px minmax(0, 1fr); align-content: start; }

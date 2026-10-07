@@ -2,8 +2,8 @@
 //
 // What matters this week comes first: the next raid night and what each of its bosses can drop
 // for you (boss tiles in kill order, the best upgrade framed in gold), then the week's best M+
-// dungeons and where to spend crests. The run status, the changes since the previous run and the
-// run history sit in the right rail; the full report (filters, sortable table) and the gear are
+// dungeons, where a bonus roll is worth the most and where to spend crests. The run status, the
+// changes since the previous run and the run history sit in the right rail; the full report (filters, sortable table) and the gear are
 // one fold away.
 //
 // Vanilla JS, no build step. Every node is built with createElement/textContent, never
@@ -265,6 +265,41 @@ function computePowerToGain(upgrades) {
   const split = [...w.one.slice(0, 1), ...w.off.slice(0, 1)];
   picked.push(...(sum(two) >= sum(split) ? two : split));
   return picked.length ? { pct: sum(picked), items: picked.length } : null;
+}
+/**
+ * What a bonus roll is worth at each boss and dungeon, from QE's "bonus" rows (the item at the
+ * level a bonus roll gives, at max upgrade). A roll gives one random item of the loot pool, so
+ * like QE's own "Bonus roll chance": chance = share of the pool that is an upgrade, avg = mean
+ * gain per roll with the misses counted as 0. An item shared by two bosses ("A / B") is in both
+ * pools. Best average first, then chance.
+ */
+function computeBonusRolls(results) {
+  if (!Array.isArray(results)) return [];
+  const pools = new Map();
+  for (const r of results) {
+    if (!r || r.dropType !== "bonus" || typeof r.percDiff !== "number" || !Number.isFinite(r.percDiff)) continue;
+    const src = dropSourceName(r);
+    if (!src || (r.dropLoc !== "Raid" && r.dropLoc !== "Dungeon")) continue;
+    for (const name of src.split(" / ").map((s) => s.trim()).filter(Boolean)) {
+      const key = `${r.dropLoc}:${name}`;
+      if (!pools.has(key)) pools.set(key, { name, dropLoc: r.dropLoc, items: new Map() });
+      const items = pools.get(key).items;
+      const prev = items.get(r.item);
+      if (!prev || r.percDiff > prev.percDiff) items.set(r.item, r);
+    }
+  }
+  return [...pools.values()].map(({ name, dropLoc, items }) => {
+    const rows = [...items.values()];
+    const best = rows.reduce((a, b) => (b.percDiff > a.percDiff ? b : a));
+    return {
+      name, dropLoc,
+      pool: rows.length,
+      upgrades: rows.filter((r) => r.percDiff > 0).length,
+      avg: rows.reduce((s, r) => s + Math.max(0, r.percDiff), 0) / rows.length,
+      level: Math.max(...rows.map((r) => numOrNull(r.level) || 0)) || null,
+      best: best.percDiff > 0 ? best : null,
+    };
+  }).sort((a, b) => b.avg - a.avg || b.upgrades / b.pool - a.upgrades / a.pool);
 }
 const ILVL_SLOTS = ["head", "neck", "shoulder", "back", "chest", "wrist", "hands", "waist",
   "legs", "feet", "finger1", "finger2", "trinket1", "trinket2", "main_hand", "off_hand"];
@@ -1013,6 +1048,41 @@ function dungeonWeek(all) {
   return sec;
 }
 
+/** Where a bonus roll is worth the most with this tab's coin: raid bosses and M+ dungeons. */
+const BONUS_SHOW = 5;
+function bonusRollSection() {
+  const r = reportFor(S.tab);
+  const rows = computeBonusRolls(r && !r.error ? r.results : null).filter((p) => p.avg > 0).slice(0, BONUS_SHOW);
+  const sec = h("section", { attrs: { "aria-labelledby": "brH" } }, [sectionHead(t("bonusRoll"), t("bonusRollCap", { diff: S.tab }), "brH")]);
+  if (!rows.length) {
+    sec.appendChild(h("p", { className: "muted", text: t("noBonusRoll", { diff: S.tab }) }));
+    return sec;
+  }
+  const raids = currentRaids();
+  const max = rows[0].avg;
+  sec.appendChild(h("ol", { className: "dg dg--tight" }, rows.map((p, i) => h("li", { className: "dg__row" }, [
+    h("div", { className: "rib" }, [h("div", { className: "rib__bar" }, [h("div", { className: "rib__in" }, [
+      h("span", { className: "rib__acc", text: String(i + 1) }),
+      h("span", { className: "dg__name" }, [
+        h("b", { text: sourceName({ dropLoc: p.dropLoc, dropSource: p.name }, raids) }),
+        h("span", {}, [
+          h("span", { text: `${p.dropLoc === "Raid" ? "Raid" : "M+"} ${p.level ?? "?"} · ` }),
+          h("span", { className: "mono", text: `${p.upgrades}/${p.pool}`, attrs: { "aria-hidden": "true" } }),
+          h("span", { className: "visually-hidden", text: t("bonusChance", { up: p.upgrades, n: p.pool }) }),
+          h("span", { text: " · " }),
+          p.best ? itemLink(p.best.item, p.best.level, { name: p.best.name }) : null,
+        ]),
+      ]),
+    ])])]),
+    h("span", { className: "dg__gain" }, [
+      meter(p.avg / max, "jade"),
+      h("span", { className: "pct mono", text: fmtPct(p.avg), attrs: { title: t("bonusAvg") } }),
+      h("span", { className: "visually-hidden", text: ` ${t("bonusAvg")}` }),
+    ]),
+  ]))));
+  return sec;
+}
+
 /** Crest rows: item, track rank -> max, item levels, slanted bar. */
 function crestSection() {
   const c = char();
@@ -1440,7 +1510,8 @@ function render(app) {
     const main = h("div", { className: "main" }, [raidNightSection(all)]);
     const rep = reportFor(S.tab);
     if (rep && !rep.error) {
-      main.appendChild(h("div", { className: "two" }, [dungeonWeek(all), crestSection()]));
+      main.appendChild(h("div", { className: "two" }, [dungeonWeek(all), bonusRollSection()]));
+      main.appendChild(h("div", { className: "two" }, [crestSection()]));
       main.appendChild(folds(all));
     } else if (availableTabs().length) {
       main.appendChild(h("div", { className: "two" }, [crestSection()]));

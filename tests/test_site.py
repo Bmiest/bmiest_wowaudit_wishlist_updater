@@ -56,6 +56,11 @@ def _summary(run_id: str, ok: bool = True) -> dict:
         _result(4, 0.70, "Temple of Sethraliss", loc="Dungeon", slot="Finger"),
         _result(5, 0, "Ula'tek"),
     ]
+    # The same items at bonus-roll level, for the "Best bonus roll" block.
+    results += [
+        {**r, "dropType": "bonus", "level": 344, "percDiff": r["percDiff"] and r["percDiff"] + 0.1}
+        for r in copy.deepcopy(results)
+    ]
     return {
         "schema": 2,
         "run": {
@@ -173,6 +178,8 @@ def _render(base: str, path: str, width: int = 1440):
                 t.querySelector('.rnb__name').textContent, t.classList.contains('is-best'),
                 t.querySelectorAll('.rnb__it').length]),
               when: document.querySelector('.rn__date').textContent,
+              bonus: [...document.querySelectorAll('[aria-labelledby="brH"] .dg__name b')]
+                .map(b => b.textContent),
               alerts: [...document.querySelectorAll('.alert')].map(a => a.textContent),
               heads: [...document.querySelectorAll('.rnb .boss-thumb img')]
                 .map(i => i.getAttribute('src')),
@@ -204,6 +211,13 @@ def test_dashboard_renders_the_raid_night(server):
         "img/boss/head-140369.webp",
     ]
     assert "20:00" in state["when"]
+    # Bonus rolls by average gain over the pool: Ula'tek (1.67 + a miss) / 2 beats the dungeon.
+    assert state["bonus"] == [
+        "Ula'tek",
+        "Temple of Sethraliss",
+        "Nek'zali the Soulcoiler",
+        "Entombed Sentinels",
+    ]
     assert any("Gear may be out of date" in a for a in state["alerts"])
     assert "Jan'thrazet, the Soul Fang" in state["text"]
     # Data strings stay text: the markup in an item name is shown, never parsed.
