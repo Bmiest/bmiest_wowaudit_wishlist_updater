@@ -97,14 +97,20 @@ Every workflow run is published to https://bmiest.github.io/bmiest_wowaudit_wish
 including failed and report-only runs. It opens on the next raid night (`[raid_night]` in
 `wishlist.toml`: "Tonight 20:00" with a countdown) and the raid's bosses as tiles in kill order,
 each listing what it can drop for you in the open Heroic or Mythic report; the tile with the best
-upgrade is framed in gold. Below that: the week's best M+ dungeons and where to spend crests. The
+upgrade is framed in gold. Below that: the week's best M+ dungeons, the best bonus roll and where
+to spend crests. The
 right rail has the run status, what changed since the previous run (new and gone upgrades, gear
 swaps) and the run history; runs in a row that found the same are folded into one history row,
 by a digest of their results in `index.json`. The full report (source filters, a sortable table)
 and the gear (with the best upgrade per slot) are one fold down. "Power to gain" adds up the
 biggest upgrade in every slot (the best two rings and trinkets; a two-hander or a one-hander
 plus off-hand), per difficulty and per source filter. QE rates each item against your current
-gear, so the total is an estimate, and it's a % of your healing: QE has no HPS numbers. Boss
+gear, so the total is an estimate, and it's a % of your healing: QE has no HPS numbers.
+"Best bonus roll" ranks the raid bosses and M+ dungeons for a bonus roll with the open tab's
+coin, from QE's own bonus-roll rows (the item at the level a roll gives, at max upgrade). A roll
+gives one random item from the loot pool, so it's sorted by the average gain per roll over the
+whole pool (misses count as 0), with how many of the pool's items are an upgrade beside it, like
+QE's "Bonus roll chance". The pool is the items QE checked for your spec. Boss
 heads and full boss names come from `site/bossart.js` (add a new tier's bosses there).
 The page is in English or Dutch: `?lang=en|nl`, the
 EN | NL switch in the header (remembered), else the browser language. The history lives on the
