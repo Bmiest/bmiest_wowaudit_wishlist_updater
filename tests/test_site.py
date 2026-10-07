@@ -180,6 +180,8 @@ def _render(base: str, path: str, width: int = 1440):
               when: document.querySelector('.rn__date').textContent,
               bonus: [...document.querySelectorAll('[aria-labelledby="brH"] .dg__name b')]
                 .map(b => b.textContent),
+              chance: [...document.querySelectorAll('[aria-labelledby="brH"] .br__chance b')]
+                .map(b => b.textContent),
               alerts: [...document.querySelectorAll('.alert')].map(a => a.textContent),
               heads: [...document.querySelectorAll('.rnb .boss-thumb img')]
                 .map(i => i.getAttribute('src')),
@@ -218,6 +220,8 @@ def test_dashboard_renders_the_raid_night(server):
         "Nek'zali the Soulcoiler",
         "Entombed Sentinels",
     ]
+    # Ula'tek's pool is one upgrade and one miss.
+    assert state["chance"] == ["50%", "100%", "100%", "100%"]
     assert any("Gear may be out of date" in a for a in state["alerts"])
     assert "Jan'thrazet, the Soul Fang" in state["text"]
     # Data strings stay text: the markup in an item name is shown, never parsed.

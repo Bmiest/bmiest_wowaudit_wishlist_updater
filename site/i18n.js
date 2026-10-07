@@ -50,8 +50,9 @@ const I18N = {
     weekMCap: "Ranked by the biggest upgrade you can get there.",
     noDungeonUpgrades: "No dungeon upgrades in the {diff} report.",
     bonusRoll: "Best bonus roll",
-    bonusRollCap: "A {diff} coin: average gain per roll over the loot pool (misses count as 0), at max upgrade. 2/3 = two of its three items are an upgrade.",
-    bonusChance: ({ up, n }) => `${up} of ${n} items an upgrade`,
+    bonusRollCap: "A {diff} coin, items at max upgrade. Chance: how many of the items it can drop for you are an upgrade. Ranked by the bar, the average gain per roll (misses count as 0).",
+    bonusChance: ({ up, n }) => `chance of an upgrade: ${up} of ${n} items`,
+    bonusChanceShort: ({ up, n }) => `chance ${up}/${n}`,
     bonusAvg: "average gain per roll",
     noBonusRoll: "No bonus roll is an upgrade in the {diff} report.",
     crestNow: "Spend crests now",
@@ -204,8 +205,9 @@ const I18N = {
     weekMCap: "Gerangschikt op de grootste upgrade die je er kunt halen.",
     noDungeonUpgrades: "Geen dungeonupgrades in het {diff}-rapport.",
     bonusRoll: "Beste bonus roll",
-    bonusRollCap: "Een {diff}-coin: gemiddelde winst per roll over de lootpool (missers tellen als 0), op max upgrade. 2/3 = twee van de drie items zijn een upgrade.",
-    bonusChance: ({ up, n }) => `${up} van ${n} items een upgrade`,
+    bonusRollCap: "Een {diff}-coin, items op max upgrade. Kans: hoeveel van de items die er voor jou kunnen droppen een upgrade zijn. Gerangschikt op de balk, de gemiddelde winst per roll (missers tellen als 0).",
+    bonusChance: ({ up, n }) => `kans op een upgrade: ${up} van ${n} items`,
+    bonusChanceShort: ({ up, n }) => `kans ${up}/${n}`,
     bonusAvg: "gemiddelde winst per roll",
     noBonusRoll: "Geen enkele bonus roll is een upgrade in het {diff}-rapport.",
     crestNow: "Besteed nu je crests",
@@ -367,6 +369,10 @@ function t(key, vars) {
 }
 
 /** "+1.57%" / "+1,57%". */
+/** A share 0..1 as a whole percentage ("67%"), in the page's number format. */
+function fmtShare(x) {
+  return new Intl.NumberFormat(locale(), { style: "percent", maximumFractionDigits: 0 }).format(x);
+}
 function fmtPct(n) {
   const num = new Intl.NumberFormat(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `+${num.format(n)}%`;
