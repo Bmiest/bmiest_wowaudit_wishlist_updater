@@ -110,7 +110,9 @@ gear, so the total is an estimate, and it's a % of your healing: QE has no HPS n
 coin, from QE's own bonus-roll rows (the item at the level a roll gives, at max upgrade). A roll
 gives one random item from the loot pool, so it's sorted by the average gain per roll over the
 whole pool (misses count as 0), with the chance beside it: how many of the pool's items are an
-upgrade ("67%, 2/3"), like QE's "Bonus roll chance". The pool is the items QE checked for your spec. Boss
+upgrade ("67%, 2/3"), like QE's "Bonus roll chance". The pool is the items QE checked for your spec.
+The "All bonus rolls" fold lists every boss and dungeon with its whole pool, item by item: each
+item is 1 in n, so the upgrades' chances add up to the boss's chance. Boss
 heads and full boss names come from `site/bossart.js` (add a new tier's bosses there).
 The page is in English or Dutch: `?lang=en|nl`, the
 EN | NL switch in the header (remembered), else the browser language. The history lives on the

@@ -90,6 +90,8 @@ test("computeBonusRolls averages a roll over the whole pool, misses as 0, shared
     ["Vashnik", "Raid", 2, 1, 0.3, 334, 3],
     ["Murder Row", "Dungeon", 1, 1, 0.2, 334, 5],
   ]);
+  // The whole pool stays with each boss, biggest gain first, misses included.
+  assert.deepEqual(rows.map((p) => p.items.map((u) => u.item)), [[1, 2], [3], [3, 4], [5]]);
   assert.deepEqual(js("computeBonusRolls(null)"), []);
 });
 

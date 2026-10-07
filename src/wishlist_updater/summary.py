@@ -96,10 +96,11 @@ def add_item_info(characters: list[dict], client: httpx.Client) -> list[dict]:
     """Tag every report result with a dropSource (its boss or dungeon name) and a slot (for the
     dashboard's power-to-gain total); either is None if QE's item database doesn't say.
 
-    The upgrades (percDiff > 0, the only results the dashboard shows) also get the item's
-    English name and icon, and so do the equipped gear and the crest upgrades (a name the
-    /simc export already gave wins). Returns the raids the results drop in, with their bosses
-    in kill order, for the dashboard's boss tiles ([] when QE's databases are unreachable)."""
+    The upgrades (percDiff > 0) and the bonus-roll rows (the dashboard lists each boss's whole
+    loot pool) also get the item's English name and icon, and so do the equipped gear and the
+    crest upgrades (a name the /simc export already gave wins). Returns the raids the results
+    drop in, with their bosses in kill order, for the dashboard's boss tiles ([] when QE's
+    databases are unreachable)."""
     results = [r for c in characters for rep in c["reports"] for r in rep["results"]]
     if not results:
         return []
@@ -118,7 +119,8 @@ def add_item_info(characters: list[dict], client: httpx.Client) -> list[dict]:
     for r in results:
         r["dropSource"] = info.sources.get(r["item"])
         r["slot"] = info.slots.get(r["item"])
-        if isinstance(r.get("percDiff"), (int, float)) and r["percDiff"] > 0:
+        upgrade = isinstance(r.get("percDiff"), (int, float)) and r["percDiff"] > 0
+        if upgrade or r.get("dropType") == "bonus":
             r["name"] = info.names.get(r["item"])
             r["icon"] = info.icons.get(r["item"])
     for entry in gear + crests:

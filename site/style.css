@@ -306,6 +306,15 @@ details[open] > .disclose::before { transform: rotate(45deg); }
 .gt tr.is-best .pct { color: var(--gold); font-weight: 700; }
 .gt tr.is-best .item { color: var(--gold); }
 .gt__upw { min-width: 0; }
+/* All bonus rolls: a boss row, then its loot pool indented under it. */
+.gt--bonus { min-width: 600px; }
+.gt--bonus td.num { white-space: nowrap; }
+.gt--bonus .br-grp th, .gt--bonus .br-grp td { padding-top: 16px; border-bottom-color: var(--ink-600); font-weight: 400; }
+.br-grp__name { font-weight: 700; color: var(--paper); }
+.gt--bonus .br-it td:nth-child(2) { padding-left: 38px; }
+.gt--bonus .br-it.is-miss .item { color: var(--ink-300); font-weight: 400; }
+.br__all { margin: 10px 0 0; padding: 4px 0; font-size: 13px; color: var(--jade); }
+.br__all:hover { color: var(--paper); text-decoration: underline; }
 /* Gear table: fits its column next to the character block; the source wraps under the item. */
 .gt--gear { min-width: 0; }
 .gt--gear tr.is-best td:nth-child(2) .item { color: var(--paper); }
@@ -355,6 +364,12 @@ th[aria-sort] .sorter .ico { color: var(--jade); }
   .dg--tight .dg__row { grid-template-columns: 64px minmax(0, 1fr); }
   .dg--tight .rib { grid-column: 1 / -1; }
   .dg--tight .br__chance { text-align: left; }
+  /* All bonus rolls on a phone: no slot column, so chance and gain fit without scrolling. */
+  .gt--bonus { min-width: 0; }
+  .gt--bonus th:nth-child(3), .gt--bonus td:nth-child(3) { display: none; }
+  .gt--bonus th, .gt--bonus td { padding-right: 8px; }
+  .gt--bonus .br-it td:nth-child(2) { padding-left: 0; }
+  .gt--bonus .ico-tile, .gt--bonus .boss-thumb { display: none; }
   .rn__bosses { grid-template-columns: minmax(0, 1fr); }
   .rnb { grid-template-columns: 150px minmax(0, 1fr); grid-template-rows: auto; }
   .rnb__top { grid-template-columns: 40px minmax(0, 1fr); align-content: start; }

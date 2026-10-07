@@ -182,6 +182,13 @@ def _render(base: str, path: str, width: int = 1440):
                 .map(b => b.textContent),
               chance: [...document.querySelectorAll('[aria-labelledby="brH"] .br__chance b')]
                 .map(b => b.textContent),
+              pools: [...document.querySelectorAll('.gt--bonus .br-grp')].map(g => {
+                const items = [];
+                for (let r = g.nextElementSibling; r && r.classList.contains('br-it');
+                     r = r.nextElementSibling) items.push(r.cells[3].textContent);
+                const name = g.querySelector('.br-grp__name').textContent;
+                return [name, g.cells[3].textContent, items];
+              }),
               alerts: [...document.querySelectorAll('.alert')].map(a => a.textContent),
               heads: [...document.querySelectorAll('.rnb .boss-thumb img')]
                 .map(i => i.getAttribute('src')),
@@ -222,6 +229,13 @@ def test_dashboard_renders_the_raid_night(server):
     ]
     # Ula'tek's pool is one upgrade and one miss.
     assert state["chance"] == ["50%", "100%", "100%", "100%"]
+    # The fold lists every pool item by item, each item 1 in n.
+    assert state["pools"] == [
+        ["Ula'tek", "50% · 1/2", ["50% · 1/2", "50% · 1/2"]],
+        ["Temple of Sethraliss", "100% · 1/1", ["100% · 1/1"]],
+        ["Nek'zali the Soulcoiler", "100% · 2/2", ["50% · 1/2", "50% · 1/2"]],
+        ["Entombed Sentinels", "100% · 1/1", ["100% · 1/1"]],
+    ]
     assert any("Gear may be out of date" in a for a in state["alerts"])
     assert "Jan'thrazet, the Soul Fang" in state["text"]
     # Data strings stay text: the markup in an item name is shown, never parsed.
