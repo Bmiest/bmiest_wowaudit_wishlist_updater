@@ -10,6 +10,23 @@
 
 const CHANGELOG = [
   {
+    version: "1.4.0", date: "2026-10-09",
+    nl: [
+      "Per boss en per M+-dungeon zie je wat een bonusroll je gemiddeld oplevert, over alles wat hij kan droppen, met de kans op een upgrade erbij.",
+      "Onder 'Alle bonus rolls' staat van elke boss en dungeon de hele lootlijst: wat elk item je oplevert en de kans dat je het krijgt.",
+      "Onderaan staan de bronnen, hoe het werkt, feedback en de versie, met deze lijst van wijzigingen in het Nederlands en het Engels.",
+      "Een nieuw icoontje in je browsertab.",
+      "Bezoekers worden geteld zonder cookies.",
+    ],
+    en: [
+      "Per boss and per M+ dungeon you see what a bonus roll gains you on average, over everything it can drop, with the chance of an upgrade.",
+      "Under 'All bonus rolls', every boss and dungeon has its whole loot list: what each item gains you and the chance you get it.",
+      "The bottom of the page has the sources, how it works, feedback and the version, with this list of changes in Dutch and English.",
+      "A new icon in your browser tab.",
+      "Visitors are counted without cookies.",
+    ],
+  },
+  {
     version: "1.3.0", date: "2026-10-04",
     nl: [
       "Het dashboard is een plan voor de raidavond: het opent op de volgende raid, met per boss wat hij voor je kan droppen. De tegel met de beste upgrade krijgt een gouden rand.",
