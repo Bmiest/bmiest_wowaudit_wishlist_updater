@@ -1536,21 +1536,72 @@ function rail() {
 // ---------------------------------------------------------------------------------------------
 // Footer and page
 // ---------------------------------------------------------------------------------------------
+const DISCORD_PATH = "M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z";
+const REPO_URL = "https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater";
+
+/** An inline SVG icon from one path (h() only makes HTML elements). */
+function svgIcon(d, cls) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  if (cls) svg.setAttribute("class", cls);
+  const p = document.createElementNS(NS, "path");
+  p.setAttribute("d", d);
+  svg.appendChild(p);
+  return svg;
+}
+
+/* The footer, built like racetodutchfirst.nl's and the stream overlay's (family): a full-width
+   ink-850 band under the page. The name, back to top; then the sources (name + what it gives),
+   how this works (the four notes that used to be a fold) and feedback; then the disclaimer with
+   the version, linking to changelog.html. The version comes from version.json, which the deploy
+   writes from pyproject.toml; without it (a local preview) the label stays away. */
 function footer() {
   const prof = raiderioProfileUrl(char());
-  return h("footer", { className: "foot" }, [
-    h("details", { className: "fold" }, [
-      h("summary", { className: "disclose" }, [h("span", { className: "fold__title", text: t("howItWorks") }), h("span", { className: "fold__hint", text: t("howHint") })]),
-      h("ol", { className: "fold__list" }, ["how1", "how2", "how3", "how4"].map((k) => h("li", { text: t(k) }))),
+  const src = (name, href, key) => h("li", {}, [extLink(href, name), h("span", { text: t(key) })]);
+  const ver = h("a", { className: "ft__ver", attrs: { href: "changelog.html", hidden: true } });
+  fetch("version.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((v) => {
+    if (!v || !v.version) return;
+    ver.textContent = `v${v.version}`;
+    if (v.commit) ver.title = v.commit;
+    ver.hidden = false;
+  }).catch(() => {});
+  return h("footer", { className: "site-footer" }, [h("div", { className: "ft" }, [
+    h("div", { className: "ft__head" }, [
+      h("p", { className: "ft__id" }, [h("span", { className: "ft__name", text: t("ftName") }), h("span", { className: "ft__meta", text: t("ftMeta") })]),
+      h("a", { className: "ft__up", attrs: { href: "#" } }, [svgIcon("M6 14l6-6 6 6"), h("span", { text: t("ftTop") })]),
     ]),
-    // Raider.io's API terms ask for a link back to raider.io.
-    h("p", { className: "foot__line" }, [
-      h("span", { text: `${t("gearData")} ` }),
-      h("a", { text: "Raider.IO", attrs: { href: prof || "https://raider.io", target: "_blank", rel: "noopener noreferrer" } }),
-      h("span", { text: " · QE Live · Wowhead · " }),
-      h("a", { text: t("sourceOnGithub"), attrs: { href: "https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater", target: "_blank", rel: "noopener noreferrer" } }),
+    h("div", { className: "ft__cols" }, [
+      h("section", { attrs: { "aria-labelledby": "ftSrcH" } }, [
+        h("h2", { className: "ft__h", text: t("ftSources"), attrs: { id: "ftSrcH" } }),
+        // Raider.io's API terms ask for a link back to raider.io: this is it.
+        h("ul", { className: "ft__src" }, [
+          src("Raider.IO", prof || "https://raider.io", "ftSrcRio"),
+          src("QE Live", "https://questionablyepic.com/live", "ftSrcQe"),
+          src("WoWAudit", "https://wowaudit.com", "ftSrcAudit"),
+          src("Wowhead", "https://www.wowhead.com", "ftSrcWh"),
+          src("Blizzard", "https://worldofwarcraft.blizzard.com", "ftSrcBz"),
+        ]),
+      ]),
+      h("section", { attrs: { "aria-labelledby": "ftHowH" } }, [
+        h("h2", { className: "ft__h", text: t("howItWorks"), attrs: { id: "ftHowH" } }),
+        ...["how1", "how2", "how3", "how4"].map((k) => h("p", { text: t(k) })),
+      ]),
+      h("section", { attrs: { "aria-labelledby": "ftFbH" } }, [
+        h("h2", { className: "ft__h", text: "Feedback", attrs: { id: "ftFbH" } }),
+        h("p", { text: t("ftFb") }),
+        h("a", { className: "ft__btn", attrs: { href: `${REPO_URL}/issues/new`, target: "_blank", rel: "noopener noreferrer" } }, [svgIcon("M4 5h16v11H9l-5 4z"), h("span", { text: t("ftFbBtn") })]),
+        h("p", { className: "ft__dm" }, [
+          h("span", { text: `${t("ftFbDm")} ` }),
+          h("a", { className: "ft__handle", attrs: { href: "https://discord.com/users/186853261477806081", target: "_blank", rel: "noopener noreferrer" } }, [svgIcon(DISCORD_PATH), h("span", { text: "bmiest" })]),
+        ]),
+        h("p", { className: "ft__gh" }, [extLink(REPO_URL, t("sourceOnGithub"))]),
+      ]),
     ]),
-  ]);
+    h("div", { className: "ft__legal" }, [h("p", { className: "ft__disclaimer", text: t("ftLegal") }), ver]),
+  ])]);
 }
 
 function render(app) {
@@ -1577,7 +1628,7 @@ function render(app) {
   } else if (S.data) {
     page.appendChild(h("div", { className: "grid" }, [h("p", { className: "empty", text: t("noCharacterData") }), rail()]));
   }
-  page.appendChild(footer());
+  app.appendChild(footer());
 }
 
 if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("DOMContentLoaded", boot);

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none';">
+<title>Changelog · bmiest wishlist updater</title>
+<meta name="description" content="Every release of the bmiest wishlist updater, newest first.">
+<meta name="theme-color" content="#0a0b0d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="cl">
+  <a class="cl__back" href="./"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 6l-6 6 6 6"/></svg><span data-t="clBack">Back to the dashboard</span></a>
+  <h1 class="cl__title" data-t="clTitle">Changelog</h1>
+  <p class="cl__lead" data-t="clLead">Every release of the wishlist updater, newest first.</p>
+  <p class="cl__note cl__note--en" id="clEn" hidden></p>
+  <ol class="cl__list" id="clList" aria-live="polite"><li class="cl__note" data-t="clLoading">Loading the releases from GitHub…</li></ol>
+  <p class="cl__more"><a href="https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater/releases" rel="noopener" data-t="clAll">All releases on GitHub</a></p>
+</main>
+<script src="i18n.js"></script>
+<script src="changelog.js"></script>
+</body>
+</html>

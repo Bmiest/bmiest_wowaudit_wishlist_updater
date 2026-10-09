@@ -128,6 +128,8 @@ def _site(tmp_path: Path, ok: bool) -> Path:
 
     root = tmp_path / ("ok" if ok else "fail")
     shutil.copytree(SITE, root)
+    # deploy-site.yml writes this from pyproject.toml; the footer shows it.
+    (root / "version.json").write_text('{"version": "9.9.9", "commit": "abc1234"}')
     publish(_summary("2"), root / "data")
     if not ok:
         failed = _summary("3", ok=False)
@@ -169,6 +171,7 @@ def _render(base: str, path: str, width: int = 1440):
         )
         page.goto(base + path)
         page.wait_for_selector(".rn")
+        page.wait_for_selector(".ft__ver:not([hidden])")
         state = page.evaluate(
             """() => ({
               title: document.querySelector('.ph__title').textContent,
@@ -192,6 +195,8 @@ def _render(base: str, path: str, width: int = 1440):
               alerts: [...document.querySelectorAll('.alert')].map(a => a.textContent),
               heads: [...document.querySelectorAll('.rnb .boss-thumb img')]
                 .map(i => i.getAttribute('src')),
+              version: document.querySelector('.ft__ver').textContent,
+              sources: [...document.querySelectorAll('.ft__src > li > a')].map(a => a.textContent),
               pwned: window.__pwned === 1,
               injected: document.querySelectorAll('img[src="x"]').length,
               scrollWidth: document.documentElement.scrollWidth,
@@ -238,6 +243,10 @@ def test_dashboard_renders_the_raid_night(server):
     ]
     assert any("Gear may be out of date" in a for a in state["alerts"])
     assert "Jan'thrazet, the Soul Fang" in state["text"]
+    # The footer: the version from version.json, and the sources with Raider.IO first
+    # (their API terms ask for the link back).
+    assert state["version"] == "v9.9.9"
+    assert state["sources"] == ["Raider.IO", "QE Live", "WoWAudit", "Wowhead", "Blizzard"]
     # Data strings stay text: the markup in an item name is shown, never parsed.
     assert XSS in state["text"] and not state["pwned"] and state["injected"] == 0
 
