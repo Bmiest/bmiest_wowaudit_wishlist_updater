@@ -130,10 +130,12 @@ your wishlist and the raw `/simc` export never go there.
 ### Version and changelog
 
 The footer shows the version from `pyproject.toml`: the deploy (`deploy-site.yml`) writes it
-to `version.json` together with the commit it built. A release is a "Release x.y.z" PR that
-bumps `pyproject.toml` and `uv.lock`, then a `vx.y.z` tag with a GitHub release; its notes
-show up on `changelog.html`, which reads GitHub's releases API in the browser (escaped first,
-then a small markdown subset).
+to `version.json` together with the commit it built. What changed is kept in
+`site/changelog-data.js`, the way racetodutchfirst.nl keeps `changelog.toml`: a block per
+version with its date and plain lines in Dutch (the original) and English, about what you
+notice on the dashboard or in WoWAudit. `changelog.html` shows it in the race's layout (NL | EN
+switch, a rail per version, the live one in gold). A release is a "Release x.y.z" PR that bumps
+`pyproject.toml` and `uv.lock` and adds that block, then a `vx.y.z` tag and GitHub release.
 
 ## Limitations
 

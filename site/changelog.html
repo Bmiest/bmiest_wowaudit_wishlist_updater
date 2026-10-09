@@ -6,9 +6,9 @@
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none';">
 <title>Changelog · bmiest wishlist updater</title>
-<meta name="description" content="Every release of the bmiest wishlist updater, newest first.">
+<meta name="description" content="What changed in the bmiest wishlist updater, per version, newest first.">
 <meta name="theme-color" content="#0a0b0d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,16 +16,45 @@
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<main class="cl">
-  <a class="cl__back" href="./"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 6l-6 6 6 6"/></svg><span data-t="clBack">Back to the dashboard</span></a>
-  <h1 class="cl__title" data-t="clTitle">Changelog</h1>
-  <p class="cl__lead" data-t="clLead">Every release of the wishlist updater, newest first.</p>
-  <p class="cl__note cl__note--en" id="clEn" hidden></p>
-  <ol class="cl__list" id="clList" aria-live="polite"><li class="cl__note" data-t="clLoading">Loading the releases from GitHub…</li></ol>
-  <p class="cl__more"><a href="https://github.com/Bmiest/bmiest_wowaudit_wishlist_updater/releases" rel="noopener" data-t="clAll">All releases on GitHub</a></p>
+<body class="pv-page" data-title-nl="Wijzigingen · bmiest wishlist updater" data-title-en="Changelog · bmiest wishlist updater">
+
+<header class="pv-top">
+  <a class="bug pv-bug" href="./">
+    <span class="bug__brand"><svg class="ico ico--mark" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="3" fill="currentColor"></circle><path d="M4.2 4.2a6.8 6.8 0 0 0 0 9.6M13.8 4.2a6.8 6.8 0 0 1 0 9.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>bmiest</span></span>
+    <span class="bug__status is-ok pv-back"><span lang="en" data-pv="en">Back to the dashboard</span><span lang="nl" data-pv="nl" hidden>Naar het dashboard</span></span>
+  </a>
+  <div class="lang-switch" role="group" aria-label="Language">
+    <button type="button" data-lang="en" aria-pressed="true" lang="en">EN</button>
+    <button type="button" data-lang="nl" aria-pressed="false" lang="nl">NL</button>
+  </div>
+</header>
+
+<main class="pv">
+<!-- Two languages on one page, like wijzigingen.html on racetodutchfirst.nl: changelog.js fills
+     both lists from changelog-data.js and shows the one i18n.js picks. -->
+<article class="pv__doc" lang="en" data-pv="en">
+  <h1 class="pv__title">Changelog</h1>
+  <p class="pv__lead">What changed in the wishlist updater and its dashboard, newest first.</p>
+  <p class="pv__meta mono">Live now: <span class="js-live">—</span></p>
+  <ol class="ch" data-ch="en"></ol>
+</article>
+<article class="pv__doc" lang="nl" data-pv="nl" hidden>
+  <h1 class="pv__title">Wijzigingen</h1>
+  <p class="pv__lead">Wat er aan de wishlist updater en zijn dashboard veranderde, nieuwste eerst.</p>
+  <p class="pv__meta mono">Nu live: <span class="js-live">—</span></p>
+  <ol class="ch" data-ch="nl"></ol>
+</article>
 </main>
+
+<footer class="site-footer">
+  <div class="ft pv-ft">
+    <p class="ft__disclaimer" lang="en" data-pv="en">Fan-made, not affiliated with Blizzard Entertainment. World of Warcraft and the boss renders are trademarks and work of Blizzard Entertainment, Inc.</p>
+    <p class="ft__disclaimer" lang="nl" data-pv="nl" hidden>Gemaakt door een fan, niet verbonden aan Blizzard Entertainment. World of Warcraft en de bossrenders zijn handelsmerken en werk van Blizzard Entertainment, Inc.</p>
+  </div>
+</footer>
+
 <script src="i18n.js"></script>
+<script src="changelog-data.js"></script>
 <script src="changelog.js"></script>
 </body>
 </html>
