@@ -63,6 +63,9 @@ jobs:
             exit 1
           fi
           test -f _site/index.html
+          # The version in the footer: pyproject's, plus the commit it was built from.
+          python3 -c 'import json, os, tomllib; v = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]; json.dump({"version": v, "commit": os.environ["GITHUB_SHA"][:7]}, open("_site/version.json", "w"))'
+          cat _site/version.json
           find _site -maxdepth 2 | sort
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

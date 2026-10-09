@@ -127,6 +127,14 @@ item slots from QE Live's public item and instance databases
 ([Voulk/QuestionablyEpic](https://github.com/Voulk/QuestionablyEpic)). Your WoWAudit session,
 your wishlist and the raw `/simc` export never go there.
 
+### Version and changelog
+
+The footer shows the version from `pyproject.toml`: the deploy (`deploy-site.yml`) writes it
+to `version.json` together with the commit it built. A release is a "Release x.y.z" PR that
+bumps `pyproject.toml` and `uv.lock`, then a `vx.y.z` tag with a GitHub release; its notes
+show up on `changelog.html`, which reads GitHub's releases API in the browser (escaped first,
+then a small markdown subset).
+
 ## Limitations
 
 - Raider.io and the Blizzard API only expose the gear you have equipped. The rest of what the
