@@ -53,6 +53,6 @@ region = "eu"
 [characters.item_overrides]
 shoulder = { id = 271553, redirected_base_stats = 239031 }
 chest = { id = 271558, redirected_base_stats = 268221 }
+wrist = { id = 271551, redirected_base_stats = 251154 }
 waist = { id = 239649, crafted_stats = [40, 36] }
 legs = { id = 271554, redirected_base_stats = 268236 }
-off_hand = { id = 245769, crafted_stats = [32, 40] }
