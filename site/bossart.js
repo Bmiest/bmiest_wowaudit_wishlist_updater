@@ -22,4 +22,9 @@ window.BossArt = {
   2895: { name: "Ula'tek", head: 140369 },
   // The Tidebound Grotto
   2849: { name: "Nymrissa Wavecaller", head: 137687 },
+  // The Unbinding of Kith'ix. Blizzard's CDN had no render yet (403), so its head comes from the
+  // race site's stand-in, Wowhead's model viewer thumbnail of the same model
+  // (wow.zamimg.com/modelviewer/live/webthumbs/npc/26/145178.png). Redo it from the race site's
+  // PNG once boss-cutouts.py there has swapped in Blizzard's render.
+  2896: { name: "Kith'ix", head: 145178 },
 };
