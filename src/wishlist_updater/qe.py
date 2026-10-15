@@ -100,7 +100,6 @@ class QESettings:
     crafted_stats: str | None = None  # e.g. "Crit / Haste"; None keeps QE's default
     ally_buffs_scaling: int | None = 75
     cosmic_crescendo: int | None = 75
-    volatile_void_suffuser: int | None = 85
     trappings_uptime: int | None = 60
 
 
@@ -425,7 +424,6 @@ class _Run:
         entries = {
             "Ally Buffs Scaling": settings.ally_buffs_scaling,
             "Cosmic Crescendo": settings.cosmic_crescendo,
-            "Volatile Void Suffuser": settings.volatile_void_suffuser,
             "Trappings Uptime": settings.trappings_uptime,
         }
         for title, value in entries.items():

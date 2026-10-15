@@ -159,7 +159,6 @@ def test_qe_settings_defaults_are_the_users_settings():
         "crafted_stats": None,
         "ally_buffs_scaling": 75,
         "cosmic_crescendo": 75,
-        "volatile_void_suffuser": 85,
         "trappings_uptime": 60,
     }
     with pytest.raises(dataclasses.FrozenInstanceError):
