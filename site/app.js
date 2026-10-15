@@ -1594,7 +1594,7 @@ function footer() {
         h("p", { text: t("ftFb") }),
         h("a", { className: "ft__btn", attrs: { href: `${REPO_URL}/issues/new`, target: "_blank", rel: "noopener noreferrer" } }, [svgIcon("M4 5h16v11H9l-5 4z"), h("span", { text: t("ftFbBtn") })]),
         h("p", { className: "ft__dm" }, [
-          h("span", { text: `${t("ftFbDm")} ` }),
+          h("span", { text: t("ftFbDm") }),
           h("a", { className: "ft__handle", attrs: { href: "https://discord.com/users/186853261477806081", target: "_blank", rel: "noopener noreferrer" } }, [svgIcon(DISCORD_PATH), h("span", { text: "bmiest" })]),
         ]),
         h("p", { className: "ft__gh" }, [extLink(REPO_URL, t("sourceOnGithub"))]),
