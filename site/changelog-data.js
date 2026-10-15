@@ -10,6 +10,15 @@
 
 const CHANGELOG = [
   {
+    version: "1.4.1", date: "2026-10-15",
+    nl: [
+      "De wishlists worden weer bijgewerkt. QE Live haalde een instelling weg, waardoor elke run sinds 14 oktober mislukte.",
+    ],
+    en: [
+      "Wishlists update again. QE Live removed a setting, which made every run since 14 October fail.",
+    ],
+  },
+  {
     version: "1.4.0", date: "2026-10-09",
     nl: [
       "Per boss en per M+-dungeon zie je wat een bonusroll je gemiddeld oplevert, over alles wat hij kan droppen, met de kans op een upgrade erbij.",
