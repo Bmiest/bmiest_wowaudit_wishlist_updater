@@ -10,6 +10,15 @@
 
 const CHANGELOG = [
   {
+    version: "1.4.2", date: "2026-10-15",
+    nl: [
+      "Kith'ix heeft nu een portret op zijn tegel.",
+    ],
+    en: [
+      "Kith'ix now has a portrait on his tile.",
+    ],
+  },
+  {
     version: "1.4.1", date: "2026-10-15",
     nl: [
       "De wishlists worden weer bijgewerkt. QE Live haalde een instelling weg, waardoor elke run sinds 14 oktober mislukte.",
