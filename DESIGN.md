@@ -242,7 +242,8 @@ components:
      Contract: .impeccable/surfaces/site-index-html.md (mock C, raid-night plan, .impeccable/mocks/).
      Family record: Bmiest/bmiest-design DESIGN.md. Sibling: twitch-overlay-v2 DESIGN.md.
      Scope tags: [family] = the shared v2 language, should match the family DESIGN.md;
-     [wishlist] = this product only. site/tokens.css is a byte copy of an earlier overlay tokens.css;
+     [wishlist] = this product only. site/tokens.css is a byte copy of the overlay's tokens.css without its Google Fonts @import
+     (the fonts load in the HTML);
      --track lives on :root in site/style.css. -->
 
 ## Overview
