@@ -27,6 +27,10 @@
   --holy      :#ffffff;
   --gold      :#d8b263;
   --rose      :#d98b8b;
+  /* Alleen voor LIVE (het blokje in de bug van de webpagina's), nooit op
+     een stream-pagina: daar weet iedereen al dat je live bent. Familie-
+     token uit bmiest-design; de race-site leest hem vanaf hier. */
+  --live-red  :#c93339;
 
   /* ---- vorm (uit Amused: capsules, pillen, ribbons) ---------------- */
   --r-cap :30px;
@@ -44,6 +48,9 @@
   --t-med :300ms;
   --t-slow:420ms;
   --ease  :cubic-bezier(.22,.61,.36,1);
+  /* voor alles wat reist: een wipe, een balk die loopt, een kaart die
+     binnenkomt. Geen bounce. */
+  --ease-out:cubic-bezier(.16,1,.3,1);
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
