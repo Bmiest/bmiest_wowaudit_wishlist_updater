@@ -9,6 +9,11 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # playwright must move together with the digest-pinned container image in
+    # update-wishlists.yml, which Dependabot can't bump (#28 broke every run that way).
+    # Raise both by hand.
+    ignore:
+      - dependency-name: playwright
     groups:
       python:
         patterns: ["*"]
