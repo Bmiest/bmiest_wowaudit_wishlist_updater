@@ -245,3 +245,43 @@ jobs:
             git commit -qm "Dashboard data for run $GITHUB_RUN_ID"
             git push -q origin HEAD:refs/heads/dashboard-data
           fi
+
+  # GitHub's own failure emails for scheduled runs are easy to miss, so a failed run opens
+  # (or comments on) one tracking issue, and the next good run closes it.
+  notify:
+    needs: [update, record]
+    if: ${{ !cancelled() && needs.update.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Wishlist update failing
+      FAILED: ${{ needs.update.result == 'failure' || needs.record.result == 'failure' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      OWNER: ${{ github.repository_owner }}
+      EVENT: ${{ github.event_name }}
+    steps:
+      - name: Open, update or close the tracking issue
+        run: |
+          set -euo pipefail
+          issue=$(gh issue list --state open --author app/github-actions \
+            --search "in:title \"$TITLE\"" --json number,title \
+            -q "map(select(.title == env.TITLE)) | .[0].number // empty")
+          if [ "$FAILED" = "true" ]; then
+            msg="The $EVENT run failed: $RUN_URL"
+            if [ -n "$issue" ]; then
+              gh issue comment "$issue" --body "$msg"
+            else
+              gh issue create --title "$TITLE" --body "@$OWNER $msg
+
+          This issue closes itself after the next successful run."
+            fi
+          elif [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "Fixed: the $EVENT run succeeded. $RUN_URL"
+          fi
