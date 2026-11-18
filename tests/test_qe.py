@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from wishlist_updater import qe
 from wishlist_updater.qe import (
+    QEBotCheckError,
     QEError,
     QESettings,
     check_saved_report,
@@ -192,6 +194,55 @@ async def test_generate_upgrade_report_live_failure_saves_artifacts(tmp_path):
     with pytest.raises(QEError, match="applying Upgrade Finder settings.*No raid difficulty"):
         await _run_live(QESettings(raid_difficulty="Impossible"), tmp_path)
     assert sorted(path.suffix for path in tmp_path.iterdir()) == [".html", ".log", ".png"]
+
+
+# Trimmed copy of the bot check QE Live served on 2026-11-16 and 2026-11-18.
+BOT_CHECK_HTML = """<!DOCTYPE html><html lang="en"><head><title>One moment, please...</title></head>
+<body><div id="text">Please wait while your request is being verified...</div></body></html>"""
+APP_HTML = """<!DOCTYPE html><html><body>
+<span id="class-select-label">Spec</span>
+<div aria-haspopup="listbox" aria-labelledby="class-select-label">Holy Priest</div>
+</body></html>"""
+
+
+async def _open_with_bot_checks(monkeypatch, bot_checks: int) -> int:
+    """Open the Upgrade Finder against a fake QE that serves the bot check bot_checks times."""
+    from playwright.async_api import async_playwright
+
+    monkeypatch.setattr(qe, "BOT_CHECK_RETRY_DELAYS_S", (0.0, 0.0))
+    served = 0
+
+    async def handle(route):
+        nonlocal served
+        served += 1
+        body = BOT_CHECK_HTML if served <= bot_checks else APP_HTML
+        await route.fulfill(status=200, content_type="text/html", body=body)
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            page = await browser.new_page()
+            await page.route(qe.UPGRADE_FINDER_URL, handle)
+            await qe._Run(page, timeout_ms=5_000).open_upgrade_finder()
+        finally:
+            await browser.close()
+    return served
+
+
+async def test_open_upgrade_finder_reloads_through_bot_check(monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger="wishlist_updater.qe")
+    assert await _open_with_bot_checks(monkeypatch, bot_checks=2) == 3
+    assert "served its bot check (attempt 2/3)" in caplog.text
+    assert "let us through on attempt 3/3" in caplog.text
+
+
+async def test_open_upgrade_finder_without_bot_check_loads_once(monkeypatch):
+    assert await _open_with_bot_checks(monkeypatch, bot_checks=0) == 1
+
+
+async def test_open_upgrade_finder_gives_up_on_persistent_bot_check(monkeypatch):
+    with pytest.raises(QEBotCheckError, match="3 attempts"):
+        await _open_with_bot_checks(monkeypatch, bot_checks=99)
 
 
 def test_redact_simc_scrubs_every_long_line():
