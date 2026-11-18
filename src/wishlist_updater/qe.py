@@ -69,6 +69,13 @@ SIMC_CLASSES = frozenset(
     }
 )
 
+# QE's host sometimes answers with a bot check ("One moment, please..." / "Please wait while
+# your request is being verified...") instead of the app. That page is meant to reload itself
+# after 5 s, but Cloudflare Rocket Loader rewrites its scripts and the page's own CSP blocks
+# Rocket Loader, so nothing on it ever runs. We reload it ourselves, backing off in between.
+_BOT_CHECK_TEXT = re.compile(r"request is being verified", re.IGNORECASE)
+BOT_CHECK_RETRY_DELAYS_S: tuple[float, ...] = (15.0, 45.0, 90.0)
+
 _IMPORT_GEAR_TEXT = re.compile(r"^\s*import gear\s*$", re.IGNORECASE)
 _GO_TEXT = re.compile(r"^\s*go!?\s*$", re.IGNORECASE)
 _MPLUS_LABEL = re.compile(r"^(?:M|\+)(\d+)(?:/(\d+))?$")
@@ -78,6 +85,10 @@ _REPORT_ID = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
 
 class QEError(RuntimeError):
     """QE Live could not produce a saved upgrade report."""
+
+
+class QEBotCheckError(QEError):
+    """QE Live kept serving its bot check page instead of the app."""
 
 
 @dataclass(frozen=True)
@@ -317,10 +328,29 @@ class _Run:
             "try { localStorage.setItem('lang', '\"en\"');"
             " localStorage.setItem('i18nextLng', 'en'); } catch (e) {}"
         )
-        await self.page.goto(
-            UPGRADE_FINDER_URL, wait_until="domcontentloaded", timeout=self.timeout
-        )
-        await expect(self._spec_select()).to_be_visible(timeout=self.timeout)
+        spec_select = self._spec_select()
+        bot_check = self.page.get_by_text(_BOT_CHECK_TEXT)
+        delays = BOT_CHECK_RETRY_DELAYS_S
+        attempts = len(delays) + 1
+        for attempt in range(1, attempts + 1):
+            await self.page.goto(
+                UPGRADE_FINDER_URL, wait_until="domcontentloaded", timeout=self.timeout
+            )
+            await expect(spec_select.or_(bot_check).first).to_be_visible(timeout=self.timeout)
+            if await spec_select.is_visible():
+                if attempt > 1:
+                    log.info("QE Live let us through on attempt %d/%d", attempt, attempts)
+                return
+            if attempt == attempts:
+                raise QEBotCheckError(f"QE Live kept serving its bot check ({attempts} attempts)")
+            delay = delays[attempt - 1]
+            log.warning(
+                "QE Live served its bot check (attempt %d/%d); retrying in %.0fs",
+                attempt,
+                attempts,
+                delay,
+            )
+            await asyncio.sleep(delay)
 
     async def select_spec(self, qe_spec: str) -> None:
         spec_select = self._spec_select()
